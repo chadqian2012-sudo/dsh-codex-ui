@@ -1,0 +1,27 @@
+name: Publish npm package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+      - name: Check tag and package version
+        run: node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync("package.json")); if(process.env.GITHUB_REF_TYPE!=="tag" || process.env.GITHUB_REF_NAME!==`v${p.version}`) throw new Error("Select a release tag matching the package version");'
+      - run: npm ci --ignore-scripts
+      - run: npm install --global npm@11 --registry=https://registry.npmjs.org/
+      - run: npm test
+      - run: npm run test:distribution
+      - name: Publish with npm trusted publishing
+        run: npm publish --ignore-scripts --access public --registry=https://registry.npmjs.org/

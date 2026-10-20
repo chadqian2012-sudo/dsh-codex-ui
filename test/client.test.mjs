@@ -1,5 +1,5 @@
 /**
- * dsh-codex-effort-slider — 客户端离线测试
+ * dsh-codex-ui — 客户端离线测试
  *
  * 跑法：`node test/client.test.mjs`
  *
@@ -12,7 +12,7 @@
  */
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createDocument, createFakeHost, createOfficialMenu, loadBundle, settle, wait } from "./harness.mjs";
+import { DEFAULT_MODEL, createDocument, createFakeHost, createOfficialMenu, loadBundle, settle, wait } from "./harness.mjs";
 
 const BUNDLE = fileURLToPath(new URL("../lib/client.js", import.meta.url));
 const SOURCE = readFileSync(BUNDLE, "utf8");
@@ -139,16 +139,16 @@ function cssValue(node, prop) {
 section("1. 接线与产物");
 {
   const { registration, plugin, entry, document, host, internals } = await setup();
-  eq(registration.id, "dsh-codex-effort-slider", "[1] bundle 注册 id 正确");
+  eq(registration.id, "dsh-codex-ui", "[1] bundle 注册 id 正确");
   ok(Array.isArray(plugin.inject) && plugin.inject.indexOf("slots") >= 0, "[1] inject 含 slots");
   ok(plugin.inject.indexOf("modelDirectories") >= 0, "[1] inject 含 modelDirectories（读写官方档位靠它）");
   ok(plugin.inject.indexOf("sessions") >= 0, "[1] inject 含 sessions（判子代理会话靠它）");
   eq(entry.opts.name, "conversation.input.right", "[1] 仍然注册插槽条目（不可见锚点：拿 sessionId + ctx 的立足点）");
-  eq(entry.opts.id, "codex-effort-slider", "[1] 条目 id 是自己的");
-  const styles = document.querySelectorAll('style[data-plugin-css="dsh-codex-effort-slider"]');
+  eq(entry.opts.id, "dsh-codex-ui", "[1] 条目 id 是自己的");
+  const styles = document.querySelectorAll('style[data-plugin-css="dsh-codex-ui"]');
   eq(styles.length, 1, "[1] 样式挂载一次");
   internals.installStyles();
-  eq(document.querySelectorAll('style[data-plugin-css="dsh-codex-effort-slider"]').length, 1, "[1] 重复安装样式是幂等的");
+  eq(document.querySelectorAll('style[data-plugin-css="dsh-codex-ui"]').length, 1, "[1] 重复安装样式是幂等的");
   eq(host.subscriptions.length, 0, "[1] apply 期间没有订阅任何宿主事件");
   ok(internals.CSS.indexOf(".ces-track") > 0, "[1] 样式里有轨道规则");
 }
@@ -169,8 +169,9 @@ section("2. 只动那一行：加高、折行、不碰官方原有内容");
   const host_ = react.find("host");
   ok(host_ !== null, "[2] 滑条容器被 append 进那一行");
   eq(host_.parentNode, row, "[2] 容器的父节点就是官方那一行");
-  eq(react.portalHosts.length, 1, "[2] 只有一次 portal（没有重复注入）");
-  eq(react.portalHosts[0], host_, "[2] portal 的目标就是那个容器");
+  eq(react.portalHosts.length, 2, "[2] 滑条与 header 各有一个 portal");
+  ok(react.portalHosts.includes(host_), "[2] 滑条 portal 的目标就是 effort 行容器");
+  eq(react.find("status").parentNode.parentNode, menu.menu.querySelector('[data-ces-part="header-host"]'), "[2] 状态与重置控件挂在官方菜单 header host");
 
   const track_ = react.find("track");
   eq(track_.getAttribute("role"), "slider", "[2] 滑条有 role=slider");
@@ -189,17 +190,18 @@ section("2. 只动那一行：加高、折行、不碰官方原有内容");
 section("2b. 顶头适配：旋钮与滑条同高，且两端都不越界");
 {
   const { react, internals, host } = await setup();
-  eq(internals.KNOB_SIZE, internals.TRACK_HEIGHT, "[2b] 旋钮直径 = 轨道高度（「加大到与滑条同宽」）");
+  eq(internals.KNOB_SIZE, 40, "[2b] 旋钮直径 = 40px");
+  eq(internals.TRACK_HEIGHT, 36, "[2b] 轨道高度 = 36px");
   eq(internals.KNOB_RADIUS, internals.KNOB_SIZE / 2, "[2b] 半径 = 直径的一半");
-  eq(internals.knobOffsetOf(0), "calc(14px + 0 * (100% - 28px))", "[2b] pct=0 时圆心落在左端半径处");
-  eq(internals.knobOffsetOf(1), "calc(14px + 1 * (100% - 28px))", "[2b] pct=1 时圆心落在右端半径处");
+  eq(internals.knobOffsetOf(0), "calc(20px + 0 * (100% - 40px))", "[2b] pct=0 时圆心落在左端半径处");
+  eq(internals.knobOffsetOf(1), "calc(20px + 1 * (100% - 40px))", "[2b] pct=1 时圆心落在右端半径处");
   ok(internals.CSS.indexOf(".ces-knob{") > 0, "[2b] 有旋钮规则");
   const knobCss = internals.CSS.slice(internals.CSS.indexOf(".ces-knob{"), internals.CSS.indexOf("}", internals.CSS.indexOf(".ces-knob{")));
   ok(knobCss.indexOf("border-radius:50%") > 0, "[2b] 旋钮是正圆（border-radius:50%）");
   ok(knobCss.indexOf(`width:${internals.KNOB_SIZE}px;height:${internals.KNOB_SIZE}px`) > 0, "[2b] 旋钮盒子是等宽高的正方形（配合 50% 圆角才是圆）");
   ok(knobCss.indexOf(`margin:${-internals.KNOB_RADIUS}px 0 0 ${-internals.KNOB_RADIUS}px`) > 0, "[2b] 用 margin 把圆心对准计算出的 left");
   const trackCss = internals.CSS.slice(internals.CSS.indexOf(".ces-track{"), internals.CSS.indexOf("}", internals.CSS.indexOf(".ces-track{")));
-  ok(trackCss.indexOf(`height:${internals.TRACK_HEIGHT}px`) > 0, "[2b] 轨道高度与旋钮直径用同一组常量");
+  ok(trackCss.indexOf("height:36px") > 0, "[2b] 轨道自身高度保持 36px");
 
   // 指针映射与视觉几何一致：拖到最左必定命中第一档（而不是因为内缩差一点点）
   {
@@ -305,10 +307,28 @@ section("4. 关闭菜单 → 官方那一行逐个还原");
   ok(react2.portalHosts.length === 0, "[4] portal 已清空");
 }
 
+section("4b. 进入模型子面板时清理 root 标记与滑条，返回后重新挂载");
+{
+  const { menu, react, bundle } = await setup();
+  menu.showModels();
+  bundle.flushObservers();
+  await settle();
+  eq(menu.menu.getAttribute("data-ces-menu"), "models", "[4b] 官方模型列表面板被标记 models");
+  eq(menu.menu.getAttribute("role"), "group", "[4b] harness 使用官方 root group 结构");
+  ok(menu.menu.contains(menu.modelPane.querySelector('span[data-provider-id="deepseek"][data-model-id="deepseek-v41-flash"]')), "[4b] 模拟模型项同时含 provider/model 身份");
+  eq(menu.effortRow.style.height, "", "[4b] 进入 models pane 后还原 effort 行高度");
+  eq(menu.effortRow.querySelectorAll('[data-ces-part="host"]').length, 0, "[4b] models pane 内不残留滑条 host");
+  menu.showRoot();
+  bundle.flushObservers();
+  await settle();
+  eq(menu.menu.getAttribute("data-ces-menu"), "root", "[4b] 返回 root 后切回 root 标记");
+  ok(react.find("track") !== null, "[4b] 返回 root 后滑条重新挂载");
+}
+
 section("5. 拖动**跨档即写回**（拖到哪档就变成哪一档），松手再确认一次");
 {
   const { menu, react, host } = await setup();
-  track(react).fire("onPointerDown", { clientX: 60, pointerId: 1 }); // 60/300 = 20% → index 1 = low
+  track(react).fire("onPointerDown", { clientX: 20 + (300 - 40) / 3, pointerId: 1 }); // 按有效行程落在 low 档中心
   await wait(180);
   // ⚠️ 契约：拖动期**只在跨过档位边界的那一刻**写回一次（不是原来的每 120ms 一次）。
   //    用户要的是"拖到哪档就变成哪一档"（官方那一行的档位文字随手走）；
@@ -335,6 +355,93 @@ section("5. 拖动**跨档即写回**（拖到哪档就变成哪一档），松�
   track(react).fire("onPointerUp", {});
   await settle();
   eq(host.selects[host.selects.length - 1].reasoningEffort, "max", "[5] 拖到最右 = 最高档");
+}
+
+section("5b. 重置模型默认档位，并让在途操作按最后意图串行落地");
+{
+  let resolveFirst;
+  const model = DEFAULT_MODEL;
+  const ctx = await setup({ host: { select: (selection, store) => {
+    if (!resolveFirst) return new Promise((resolve) => {
+      resolveFirst = () => {
+        store.set({ ...store.getSnapshot(), current: { ...store.getSnapshot().current, reasoningEffort: selection.reasoningEffort } });
+        resolve({ ok: true });
+      };
+    });
+    const effort = Object.hasOwn(selection, "reasoningEffort") ? selection.reasoningEffort : model.reasoning.defaultEffort;
+    store.set({ ...store.getSnapshot(), current: { ...store.getSnapshot().current, reasoningEffort: effort } });
+    return Promise.resolve({ ok: true });
+  } } });
+
+  track(ctx.react).fire("onPointerDown", { clientX: 20 + (300 - 40) / 3, pointerId: 4 });
+  track(ctx.react).fire("onPointerUp", {}); // 先让 low 成为在途提交
+  await settle();
+  eq(ctx.host.selects.length, 1, "[5b] 拖动松手后第一笔已在途");
+  eq(ctx.host.selects[0].reasoningEffort, "low", "[5b] 在途意图是拖动选中的 low");
+
+  ctx.react.find("reset").fire("onClick", {});
+  await settle();
+  eq(ctx.host.selects.length, 1, "[5b] 在途期间 reset 先排队，不并发提交");
+  resolveFirst();
+  await settle(16);
+  eq(ctx.host.selects.length, 2, "[5b] 第一笔完成后补发最后的 reset 意图");
+  eq(Object.keys(ctx.host.selects[1]).sort().join(","), "model,provider", "[5b] reset select 省略 reasoningEffort");
+  eq(ctx.host.selects[1].provider, "deepseek", "[5b] reset 保留 provider");
+  eq(ctx.host.selects[1].model, "deepseek-v41-flash", "[5b] reset 保留 model");
+  eq(ctx.internals.effectiveEffortId(ctx.host.store.getSnapshot()), "high", "[5b] reset 后按模型默认值恢复 high");
+}
+
+section("5c. 卸载会取消尚未发出的写回");
+{
+  const ctx = await setup();
+  track(ctx.react).fire("onPointerDown", { clientX: 20 + (300 - 40) / 3, pointerId: 5 });
+  ctx.react.unmount();
+  await wait(150);
+  eq(ctx.host.selects.length, 0, "[5c] 卸载清掉降频队列，不在卸载后提交");
+}
+
+section("5d. 同组件切换 session 时隔离旧会话 optimistic、busy 与写回队列");
+{
+  let resolveSessionA;
+  const hostA = createFakeHost({ effort: "high", select: () => new Promise((resolve) => { resolveSessionA = resolve; }) });
+  const hostB = createFakeHost({ effort: "low" });
+  hostA.ctx.modelDirectories.directoryFor = (sessionId) => {
+    if (sessionId === "session-a") return hostA.directory;
+    if (sessionId === "session-b") return hostB.directory;
+    throw new Error(`unexpected session ${sessionId}`);
+  };
+  const document = createDocument();
+  const menu = createOfficialMenu(document, { effortLabel: "High" });
+  const bundle = loadBundle(BUNDLE, document, {});
+  bundle.plugin.apply(hostA.ctx);
+  const Component = hostA.registered[0].Component;
+  bundle.react.mount(Component, { sessionId: "session-a" }, menu.composer);
+  await settle();
+  const trackNode = track(bundle.react);
+
+  trackNode.fire("onKeyDown", { key: "End" }); // A 的 Max 提交保持在途
+  await settle();
+  eq(hostA.selects.length, 1, "[5d] session A 的 Max 已进入在途 select");
+  eq(hostA.selects[0].reasoningEffort, "max", "[5d] A 的在途意图为 Max");
+  eq(bundle.react.find("track").getAttribute("aria-valuetext"), "Max", "[5d] session A 的 optimistic 显示 Max");
+  eq(bundle.react.find("root").getAttribute("data-busy"), "1", "[5d] session A 在途时 busy 开启");
+
+  track(bundle.react).fire("onKeyDown", { key: "Home" }); // A 的 off 意图排在 Max 后
+  await settle();
+  eq(hostA.selects.length, 1, "[5d] A 的队列意图等待在途提交，不并发发出");
+
+  bundle.react.updateProps({ sessionId: "session-b" });
+  ok(bundle.react.find("track").getAttribute("aria-valuetext") !== "Max", "[5d] 切换后的首个渲染不泄漏 A 的 Max");
+  await settle();
+  eq(bundle.react.find("track").getAttribute("aria-valuetext"), "Low", "[5d] 稳定渲染继续显示 session B 的 Low");
+  eq(bundle.react.find("root").getAttribute("data-busy"), "0", "[5d] 切换 session 清除旧 busy 状态");
+
+  resolveSessionA({ ok: true });
+  await settle(16);
+  eq(bundle.react.find("track").getAttribute("aria-valuetext"), "Low", "[5d] A 的旧 promise 完成不污染 B 的显示");
+  eq(bundle.react.find("root").getAttribute("data-busy"), "0", "[5d] A 的旧 promise 不恢复 busy 状态");
+  eq(hostA.selects.length, 1, "[5d] A 的旧队列在切 scope 时丢弃，不补发 off");
+  eq(hostB.selects.length, 0, "[5d] 只切换读取 session B，不向 B 提交旧意图");
 }
 
 section("6. 拖动不会误触官方那一行的点击（会跳进等级列表）");
@@ -482,14 +589,14 @@ section("10. 位置驱动的色彩与粒子（蓝 → 紫 → 深紫，粒子越
   eq(react.find("root").getAttribute("data-energy"), "1", "[10] high 档：能量层已开启（0.5）");
   near(Number(react.find("root").style["--ces-energy"]), 0.5, "[10] high 档能量强度 = 0.5", 1e-6);
   eq(react.findAll("particle").length, 11, "[10] high 档：一半粒子出现（22 × 0.5）");
-  ok(internals.fillBackgroundFor(H).indexOf("linear-gradient(90deg, rgb(77,147,248), rgb(147,51,234))") === 0, "[10] high 档填充是**左蓝右紫**渐变");
+  ok(internals.fillBackgroundFor(H).indexOf("linear-gradient(90deg, rgb(77,127,247), rgb(147,51,234))") === 0, "[10] high 档填充是**左蓝右紫**渐变");
   eq(react.find("fill").style.background, internals.fillBackgroundFor(2 / 3), "[10] high 档渲染出来的就是那个渐变");
   eq(react.find("energy").style.width, react.find("fill").style.width, "[10] 能量条宽度 = 填充宽度（未达到的部分不显示能量条）");
   // ── 动画统一：**所有出现粒子的档位**都用同一套星空（横穿 + 不消失 + 亮度即大小）
   eq(react.findAll("star").length, 11, "[10] high 档也用星空轨道（不再有「低于 MAX 另一套」）");
   eq(react.findAll("particle").length, 11, "[10] high 档：一半星星出现（22 × 0.5）");
   ok(internals.CSS.indexOf(".ces-particle") < 0 && internals.CSS.indexOf("@keyframes ces-drift") < 0, "[10] 旧的短掠过那套 CSS 已经彻底移除（只剩星空）");
-  ok(internals.CSS.indexOf("@keyframes ces-star-sweep") > 0 && internals.CSS.indexOf("--ces-dy") < 0, "[10] 只剩星空关键帧，且没有任何上下位移");
+  ok(internals.CSS.indexOf("@keyframes ces-star-sweep") < 0 && internals.CSS.indexOf("--ces-dy") < 0, "[10] 星尘由相位驱动，不再用 CSS keyframe，也没有上下位移");
   ok(internals.CSS.indexOf("--ces-streak") < 0 && SOURCE.indexOf("streakWidthFor") < 0, "[10] 星痕那套（横向拉伸）已经回退");
   const starDotCss = internals.CSS.slice(internals.CSS.indexOf(".ces-star__dot{"), internals.CSS.indexOf("}", internals.CSS.indexOf(".ces-star__dot{")));
   ok(starDotCss.indexOf("width:3px;height:3px") > 0, "[10] 星星是 3px 圆点（等宽高）");
@@ -511,9 +618,8 @@ section("10. 位置驱动的色彩与粒子（蓝 → 紫 → 深紫，粒子越
   // ── 速度变化保留：位置越快，横穿时长越短（MAX 1.5s ↔ high 3s）
   near(internals.starDurationFor(0, internals.speedFor(1)), internals.STARFIELD_DURATION_MEAN, "[10] MAX 档横穿时长 = 基准 1.5s", 0.2);
   near(internals.starDurationFor(0, internals.speedFor(H)), internals.STARFIELD_DURATION_MEAN * 2, "[10] high 档横穿时长 = 3s（比 MAX 慢一倍）", 0.3);
-  const highDur = parseFloat(react.findAll("star")[0].style.animationDuration);
-  ok(highDur > 2.5 && highDur < 3.5, `[10] high 档渲染出来的时长 ≈3s（实测 ${highDur}s）`);
-  ok(highDur / internals.starDurationFor(0, internals.speedFor(1)) > 1.7, "[10] 速度变化保留：high 比 MAX 慢近一倍");
+  ok(react.findAll("star")[0].style.animationDuration === undefined, "[10] 不再给星星内联 CSS 动画时长");
+  ok(internals.starDurationFor(0, internals.speedFor(1)) < internals.starDurationFor(0, internals.speedFor(H)), "[10] MAX 比 high 流动更快");
 
   // 第二档（low，pct=1/3）：纯蓝、没有粒子、没有星云
   await pressAndSettle(ctx10, internals.KNOB_RADIUS + T * (300 - 2 * internals.KNOB_RADIUS));
@@ -521,11 +627,11 @@ section("10. 位置驱动的色彩与粒子（蓝 → 紫 → 深紫，粒子越
   eq(react.find("root").getAttribute("data-energy"), "0", "[10] 第二档：能量层关闭");
   eq(react.find("root").style["--ces-energy"], "0", "[10] 能量强度 0");
   eq(react.findAll("particle").length, 0, "[10] 第二档没有粒子（干净蓝）");
-  eq(react.find("fill").style.background, "linear-gradient(90deg, rgb(77,147,248), rgb(77,147,248))", "[10] 第二档填充两端都是蓝（纯蓝段）");
+  eq(react.find("fill").style.background, "rgb(77,127,247)", "[10] 第二档填充保持纯蓝");
 
   // ── 颜色渐变：第一档到第二档为蓝色，再往右逐渐变紫变深
-  eq(internals.fillColorFor(0), "rgb(77,147,248)", "[10] pct=0 蓝");
-  eq(internals.fillColorFor(T), "rgb(77,147,248)", "[10] 第一档到第二档之间恒为蓝色");
+  eq(internals.fillColorFor(0), "rgb(77,127,247)", "[10] pct=0 蓝");
+  eq(internals.fillColorFor(T), "rgb(77,127,247)", "[10] 第一档到第二档之间恒为蓝色");
   eq(internals.fillColorFor(H), "rgb(147,51,234)", "[10] high 档（2/3）为紫");
   eq(internals.fillColorFor(1), "rgb(76,29,149)", "[10] 最高档为深紫");
   const midColor = internals.fillColorFor((T + H) / 2);
@@ -560,18 +666,18 @@ section("10. 位置驱动的色彩与粒子（蓝 → 紫 → 深紫，粒子越
   eq(react.find("root").getAttribute("data-energy"), "1", "[10] 最高档：能量层开启");
   eq(react.find("root").style["--ces-energy"], "1", "[10] 最高档能量强度 = 1");
   eq(react.findAll("particle").length, internals.PARTICLES.length, "[10] 最高档粒子全出（渲染一致）");
-  ok(internals.fillBackgroundFor(1).indexOf("linear-gradient(90deg, rgb(77,147,248), rgb(76,29,149))") === 0, "[10] 最高档填充是左蓝右深紫");
+  ok(internals.fillBackgroundFor(1).indexOf("linear-gradient(90deg, rgb(77,127,247), rgb(76,29,149))") === 0, "[10] 最高档填充是左蓝右深紫");
   eq(react.find("energy").style.width, react.find("fill").style.width, "[10] 最高档能量条仍然只覆盖已填充段");
   ok(react.find("sweep") !== null, "[10] 有扫光层");
   ok(internals.CSS.indexOf("transform:translateX(100%);animation:ces-sweep") > 0, "[10] 扫光方向也改成从右往左");
-  ok(menu.effortRow.style.boxShadow.indexOf("rgba(168,85,247,") >= 0, "[10] 官方那一行描上紫边（内联、强度跟能量走）");
+  eq(menu.effortRow.style.boxShadow, "", "[10] 官方那一行不再描紫色边框");
 
   // ── 星空逻辑（不消失 / 亮度随机 / 越亮越大 / 速率随位置变化）
   eq(react.findAll("star").length, internals.PARTICLES.length, "[10] MAX：外层星空轨道 = 粒子数");
   ok(internals.starCountFor(1) === internals.PARTICLES.length, "[10] MAX：粒子全出");
   const wrapperMax = react.findAll("star")[0];
-  ok(typeof wrapperMax.style.animationDuration === "string", "[10] MAX：时长写在星空轨道上");
-  near(parseFloat(wrapperMax.style.animationDuration), internals.starDurationFor(0, internals.MAX_SPEED_FACTOR), "[10] MAX：时长 = starDurationFor(…, MAX_SPEED_FACTOR)", 1e-3);
+  ok(typeof wrapperMax.style.transform === "string", "[10] MAX：星星初始位置以 transform 渲染");
+  ok(wrapperMax.style.animationDuration === undefined && wrapperMax.style.animationDelay === undefined, "[10] MAX：不依赖 CSS animation duration/delay");
   // ── B：各星速度只差 ±8%（原来是 2.16×，会追尾成团）
   eq(internals.STARFIELD_DURATION_SPREAD, 0.08, "[10] B：时长浮动 = ±8%");
   const starDurations = internals.PARTICLES.map((_, i) => internals.starDurationFor(i, internals.MAX_SPEED_FACTOR));
@@ -580,6 +686,21 @@ section("10. 位置驱动的色彩与粒子（蓝 → 紫 → 深紫，粒子越
   near((starMin + starMax) / 2, internals.STARFIELD_DURATION_MEAN, "[10] B：时长均值 = STARFIELD_DURATION_MEAN", 0.02);
   ok(starMax / starMin <= 1.18, `[10] B：最快/最慢 ≤1.18×（实测 ${(starMax / starMin).toFixed(3)}×，原来是 2.16×）`);
   ok(new Set(starDurations.map((d) => d.toFixed(4))).size > 15, "[10] B：时长仍然有差异（不是所有星一个值）");
+  const clock = internals.createStarfieldClock(internals.PARTICLES.length);
+  const phases0 = clock.phases();
+  const phasesHigh = clock.advance(0.05, internals.speedFor(H)).slice();
+  const phasesHighCopy = clock.phases();
+  ok(phases0.every((p, i) => Math.abs(p - internals.PARTICLES[i].phase) < 1e-12), "[10] 相位时钟从确定性粒子初相位开始");
+  ok(phasesHigh.every((p, i) => Math.abs(p - ((phases0[i] + 0.05 / internals.starDurationFor(i, internals.speedFor(H))) % 1)) < 1e-12), "[10] high 速度按各星周期连续积分相位");
+  phasesHighCopy[0] = -10;
+  ok(clock.phases()[0] >= 0 && clock.phases()[0] < 1, "[10] phases() 返回副本，不泄漏内部状态");
+  const phasesMax = clock.advance(0.05, internals.speedFor(1));
+  ok(phasesMax.every((p, i) => Math.abs(p - ((phasesHigh[i] + 0.05 / internals.starDurationFor(i, internals.speedFor(1))) % 1)) < 1e-12), "[10] high→max 只改变之后的积分率，变速瞬间不重设相位");
+  eq(internals.createStarfieldClock(0).phases().length, 0, "[10] 空星场时钟保持空数组");
+  const rafStar = react.findAll("star")[0];
+  const transformBeforeRaf = rafStar.style.transform;
+  ctx10.flushFrames(2, 16);
+  ok(rafStar.style.transform !== transformBeforeRaf, "[10] 原生 rAF 帧直接更新星星 transform");
   // ── C：高度 = 随机排列的等距槽位，且与相位**解耦**（不能排成一条斜线）
   const heights = internals.PARTICLES.map((p) => p.y);
   const phases = internals.PARTICLES.map((p) => p.phase);
@@ -609,7 +730,7 @@ section("10. 位置驱动的色彩与粒子（蓝 → 紫 → 深紫，粒子越
   // 兜底路径也必须是合法排列（步长 5 与 22 互质）
   const fallback = Array.from({ length: 22 }, (_, i) => (i * 5) % 22);
   eq(new Set(fallback).size, 22, "[10] C：兜底排列确实是 22 个互不相同的槽");
-  ok(internals.CSS.indexOf("@keyframes ces-star-sweep{0%{transform:translate3d(0,0,0);opacity:0}6%{opacity:1}94%{opacity:1}100%{transform:translate3d(-100%,0,0);opacity:0}}") > 0, "[10] 残影只在两端淡出，中段恒亮（不消失）");
+  ok(internals.CSS.indexOf("will-change:transform,opacity") > 0, "[10] 星星 transform/opacity 由直接渲染更新");
   const starCss = internals.CSS.slice(internals.CSS.indexOf(".ces-star{"), internals.CSS.indexOf("}", internals.CSS.indexOf(".ces-star{")));
   ok(starCss.indexOf("left:0;right:0") > 0, "[10] 星空轨道 = 整条轨道宽（横穿）");
 
@@ -626,9 +747,9 @@ section("10. 位置驱动的色彩与粒子（蓝 → 紫 → 深紫，粒子越
     JSON.stringify(brightness),
     "[10] 换一次渲染亮度序列完全一致（没有 Math.random）",
   );
-  const delays = react.findAll("star").map((n) => Number(String(n.style.animationDelay).replace("s", "")));
-  ok(delays.every((d) => d <= 0), "[10] 相位都是负延迟（一出现就在途中）");
-  ok(new Set(delays.map((d) => d.toFixed(2))).size > 10, "[10] 相位铺开（均匀分布在轨道上）");
+  const positions = react.findAll("star").map((n) => Number(/translate3d\((-?[\d.]+)%/.exec(n.style.transform)?.[1] ?? NaN));
+  ok(positions.every(Number.isFinite), "[10] 初始星位使用有效 transform");
+  ok(new Set(positions.map((p) => p.toFixed(1))).size > 8, "[10] 初始相位铺开（均匀穿流）");
 
   // ── 拖回 high：同一套星空动画，但**慢一倍**（速度变化保留）
   await pressAndSettle(ctx10, internals.KNOB_RADIUS + H * (300 - 2 * internals.KNOB_RADIUS));
@@ -636,18 +757,13 @@ section("10. 位置驱动的色彩与粒子（蓝 → 紫 → 深紫，粒子越
   eq(react.findAll("particle").length, 11, "[10] 拖到 high：11 颗星星");
   eq(react.findAll("star").length, 11, "[10] 拖到 high：仍然是星空轨道（动画已统一）");
   ok(react.findAll("particle")[0].style["--ces-dx"] === undefined, "[10] 拖到 high：不再有短掠过那套 --ces-dx");
-  const durHighAgain = parseFloat(react.findAll("star")[0].style.animationDuration);
-  near(durHighAgain, internals.starDurationFor(0, internals.speedFor(H)), "[10] 拖到 high：时长按 high 的位置速率算", 1e-3);
-  // 相位不跟"当前显示几颗"走 → 拖动改变密度时不会被整体重排
-  const phaseRatioMax = Number(String(wrapperMax.style.animationDelay).replace("s", "")) / parseFloat(wrapperMax.style.animationDuration);
-  const phaseRatioHigh = Number(String(react.findAll("star")[0].style.animationDelay).replace("s", "")) / durHighAgain;
-  near(phaseRatioHigh, phaseRatioMax, "[10] 第 1 颗的相位比例在 high / MAX 完全一致（密度变化不重排星空）", 1e-6);
+  ok(typeof react.findAll("star")[0].style.transform === "string", "[10] 拖到 high：星位仍由 transform 驱动");
   track(react).fire("onPointerUp", {});
   await settle();
 
   eq(JSON.stringify(internals.PARTICLES), JSON.stringify(internals.PARTICLES), "[10] 粒子参数每次一致");
   ok(CODE.indexOf("Math.random") < 0, "[10] 代码里没有 Math.random");
-  ok(internals.CSS.indexOf("animation-play-state:paused") > 0, "[10] 关闭时暂停粒子动画（不白烧 GPU）");
+  ok(SOURCE.indexOf("requestAnimationFrame(tick)") > 0, "[10] 星尘使用局部 rAF 驱动");
   ok(host.selects.length >= 1, "[10] 这一段的所有拖动都真的写回了宿主");
 }
 
@@ -656,8 +772,8 @@ section("10b. 系统「减少动态效果」下是放缓，不是冻住");
   const normal = await setup();
   const star = normal.react.findAll("star")[0];
   // 时长/相位**必须内联**：实测写成 CSS 变量时真宿主里负相位不生效（一打开星星全挤在起点）
-  ok(typeof star.style.animationDuration === "string" && star.style.animationDuration.endsWith("s"), "[10b] 时长是内联的（不走 CSS 变量）");
-  ok(typeof star.style.animationDelay === "string" && star.style.animationDelay.startsWith("-"), "[10b] 负相位也是内联的");
+  ok(typeof star.style.transform === "string", "[10b] 星位以 transform 初始内联");
+  ok(star.style.animationDuration === undefined && star.style.animationDelay === undefined, "[10b] 星尘不使用 CSS 动画计时");
   ok(normal.internals.CSS.indexOf("animation-duration:var(") < 0 && normal.internals.CSS.indexOf("animation-delay:var(") < 0, "[10b] 样式表里不再用变量传动画计时（那正是相位失效的原因）");
   eq(normal.react.find("root").getAttribute("data-motion"), "full", "[10b] 正常模式标记 full");
   ok(String(normal.react.find("track").getAttribute("title")).indexOf("减少动态效果") < 0, "[10b] 正常模式 title 不提系统设置");
@@ -668,14 +784,12 @@ section("10b. 系统「减少动态效果」下是放缓，不是冻住");
   eq(reduced.react.find("root").getAttribute("data-motion"), "full", "[10b] 默认「完整动画」→ 即便系统要求减少动态也标记 full");
   ok(String(reduced.react.find("track").getAttribute("title")).indexOf("减少动态效果") < 0, "[10b] 默认下 title 不加「已放缓」提示");
   eq(reduced.react.findAll("star").length, 11, "[10b] 星空照常存在");
-  const normalDur = parseFloat(star.style.animationDuration);
-  const reducedDur = parseFloat(reduced.react.findAll("star")[0].style.animationDuration);
-  near(reducedDur / normalDur, 1, "[10b] 默认「完整动画」→ 星星周期与正常模式一致（不放缓）", 0.01);
+  eq(reduced.react.findAll("star")[0].style.transform, star.style.transform, "[10b] 默认完整动画下初相位与系统 reduced-motion 无关");
   ok(reduced.internals.REDUCED_MOTION_SLOWDOWN > 1, "[10b] 「快速动画」档所用的放缓系数仍在（>1）");
 
   const css = reduced.internals.CSS;
   ok(css.indexOf(".ces-energy__sweep{display:none}") > 0, "[10b] reduced-motion 收起扫光（最闪的那部分）");
-  ok(!/\.ces-star\{animation:none\}/.test(css), "[10b] 不再把动画整个关掉（这正是「粒子停住」的原因）");
+  ok(!/\.ces-star\{animation:none\}/.test(css), "[10b] 星尘位置由 JS 相位时钟驱动");
 }
 
 section("11. 结构上不存在消息注入（防同类插件的致命 bug）");
@@ -739,7 +853,7 @@ section("14. 官方数值文字（Max / High）的颜色");
   ok(!menu.modelValueEl.style.color, "[14] 另一行（模型）的数值颜色不动 —— 只碰推理等级那一行");
 
   // 颜色随位置走：蓝 → 紫罗兰
-  eq(internals.valueColorFor(0), "rgb(77,147,248)", "[14] 最左端 = 蓝");
+  eq(internals.valueColorFor(0), "rgb(77,127,247)", "[14] 最左端 = 蓝");
   eq(internals.valueColorFor(1), "rgb(139,92,246)", "[14] 最高档 = 紫罗兰（不是看不见的深紫，也不是发虚的亮紫）");
   const rgb = (s) => s.match(/\d+/g).map(Number);
   const low = rgb(internals.valueColorFor(0));
@@ -854,7 +968,7 @@ section("16. Off 档保持官方灰 + 刻度点更小更淡");
   ok(!internals.isOffLevel(null) && !internals.isOffLevel(undefined), "[16] 空值不误判");
   // 颜色：off 档给空串 = 不写内联色 = 官方原本的灰
   eq(internals.valueColorFor(0, OFF), "", "[16] off 档 → 空串（不写内联色，保持官方灰）");
-  eq(internals.valueColorFor(0, LOW), "rgb(77,147,248)", "[16] 首档不是 off（比如只有 Low/High/Max）时照常给蓝");
+  eq(internals.valueColorFor(0, LOW), "rgb(77,127,247)", "[16] 首档不是 off（比如只有 Low/High/Max）时照常给蓝");
   eq(internals.valueColorFor(1, OFF), "", "[16] 即便位置在最右，只要档位是 off 就是灰的");
 
   // 真场景：当前档位 = off，且席按钮上也写着 Off
@@ -874,11 +988,25 @@ section("16. Off 档保持官方灰 + 刻度点更小更淡");
 
   // 刻度点：更小更淡
   const tickCss = internals.CSS.slice(internals.CSS.indexOf(".ces-tick{"), internals.CSS.indexOf("}", internals.CSS.indexOf(".ces-tick{")));
-  ok(tickCss.indexOf("width:3px;height:3px") > 0, "[16] 刻度点 5px → 3px（更小）");
-  ok(tickCss.indexOf("26%,transparent") > 0, "[16] 未达到的刻度 38% → 26%（更淡）");
+  ok(tickCss.indexOf("width:6px;height:6px") > 0, "[16] 刻度点 = 6px（更小）");
+  ok(tickCss.indexOf("28%,transparent") > 0, "[16] 未达到刻度使用 28% 低对比度");
   ok(internals.CSS.indexOf(".ces-tick[data-on='1']{background:rgba(255,255,255,.5)}") > 0, "[16] 已达刻度 92% → 50% 白（更淡，不再和星星抢眼）");
   const tickNodes = off.react.findAll("tick");
   ok(tickNodes.length >= 4, `[16] 4 档就有 4 个刻度点（实测 ${tickNodes.length}）`);
+}
+
+section("16b. 只有 off 档的模型不会启用高能量特效");
+{
+  const offOnly = {
+    id: "off-only-model",
+    name: "Off Only",
+    reasoning: { defaultEffort: "off", efforts: [{ id: "off", name: "Off" }] },
+  };
+  const ctx = await setup({ host: { model: offOnly }, menu: { effortLabel: "Off" } });
+  eq(ctx.internals.effectsEnabled(offOnly.reasoning.efforts[0], 0, 1), false, "[16b] off-only 模型按档位身份关闭效果");
+  eq(ctx.react.find("root").getAttribute("data-energy"), "0", "[16b] off-only 模型 energy 保持关闭");
+  eq(ctx.react.findAll("star").length, 0, "[16b] off-only 模型不渲染星尘");
+  eq(ctx.host.selects.length, 0, "[16b] 仅显示模型默认档位，不产生宿主提交");
 }
 
 /* ══════════════════════════════════════════════════════════════════════ */
@@ -1210,7 +1338,7 @@ section("19. 两种动画模式：简洁 / 完整，且都不受系统「减少�
   }
 
   // ⑤ 刻度点（默认隐藏，可切换）
-  eq(I.readSettings().reachedTicks, "hidden", "[19] 刻度点默认 = 隐藏");
+  eq(I.readSettings().reachedTicks, "highlight", "[19] 刻度点默认 = 亮白显示");
   I.writeSettings({ reachedTicks: "highlight" });
   eq(I.readSettings().reachedTicks, "highlight", "[19] 可切到亮白显示");
   ok(/data-reached-ticks='hidden'/.test(I.CSS), "[19] CSS 含隐藏规则");
@@ -1271,7 +1399,7 @@ section("20. 指针速度不得冻结（滑块跑到鼠标一侧的回归）");
     const W = 300;
     const pctOf = (css) => { const m = /\+ ([\d.]+) \*/.exec(String(css)); return m === null ? null : Number(m[1]); };
     const readPct = () => pctOf(c.react.find("knob").style.left);
-    const at = (pct) => 14 + pct * (W - 28);
+    const at = (pct) => I.KNOB_RADIUS + pct * (W - 2 * I.KNOB_RADIUS);
 
     // 按下并追到位
     track(c.react).fire("onPointerDown", { clientX: at(0.20), pointerId: 1 });
@@ -1313,14 +1441,20 @@ section("20. 指针速度不得冻结（滑块跑到鼠标一侧的回归）");
     // 真正该"停"的时机：松手之后
     track(c.react).fire("onPointerUp", {});
     let framesAfterRelease = 0;
+    let stableFrames = 0;
+    let previousAfterRelease = readPct();
     for (let f = 0; f < 400; f += 1) {
       const e = c.flushFrames(1, 16);
       for (let k = 0; k < 6; k += 1) await Promise.resolve();
-      if (e === 0) break;
       framesAfterRelease += 1;
+      const currentAfterRelease = readPct();
+      stableFrames = Math.abs(currentAfterRelease - previousAfterRelease) < 1e-8 ? stableFrames + 1 : 0;
+      previousAfterRelease = currentAfterRelease;
+      if (stableFrames >= 5) break; // starfield keeps its own rAF alive after slider motion settles
     }
-    ok(framesAfterRelease < 300,
-      `[20] 松手并吸附完成后帧循环自行停止（${framesAfterRelease} 帧），不空转烧 CPU`);
+    ok(stableFrames >= 5 && framesAfterRelease < 300,
+      `[20] 松手后滑块运动在星场持续 rAF 的背景下收敛（${framesAfterRelease} 帧）`);
+    near(readPct(), 2 / 3, "[20] 松手后吸附到最近档位", 0.03);
   }
 
   // ⚠️ 拖动中段不能有"该动没动"的帧 —— 这是"瞬间卡顿"的回归断言。
@@ -1333,7 +1467,7 @@ section("20. 指针速度不得冻结（滑块跑到鼠标一侧的回归）");
     const W = 300;
     const pctOf = (css) => { const m = /\+ ([\d.]+) \*/.exec(String(css)); return m === null ? null : Number(m[1]); };
     const readPct = () => pctOf(c.react.find("knob").style.left);
-    const at = (pct) => 14 + pct * (W - 28);
+    const at = (pct) => c.internals.KNOB_RADIUS + pct * (W - 2 * c.internals.KNOB_RADIUS);
 
     // 按下并追到位
     track(c.react).fire("onPointerDown", { clientX: at(0.1), pointerId: 1 });
@@ -1400,7 +1534,7 @@ section("21. 官方菜单改档后，引擎必须跟随（防瞬移）");
       bundle, host, menu, react,
       track: () => { const n = react.find("track"); if (n) n.rect = { left: 0, top: 0, right: W, bottom: 28, width: W, height: 28 }; return n; },
       readPct: () => pctOf(react.find("knob").style.left),
-      at: (pct) => 14 + pct * (W - 28),
+      at: (pct) => 20 + pct * (W - 40),
       /** 模拟官方菜单改档：直接改共享 store（= ModelSelect 的 submit 效果） */
       officialSelectTo(id) {
         const snap = host.store.getSnapshot();
@@ -1579,6 +1713,11 @@ section("49. 档位列表瞬时为空：用缓存兜底，别中断松手写回�
   // 6) 缓存被别的模型覆盖后，旧模型回来不误用
   I.resolveLevels([m("max")], "opencode\u0000m2", cache);
   ok(I.resolveLevels([], "deepseek\u0000m1", cache).length === 0, "[49] 缓存被别的模型覆盖 → 旧模型不再命中");
+  const cacheA = { key: null, levels: [] };
+  const cacheB = { key: null, levels: [] };
+  I.resolveLevels([m("high")], "deepseek\u0000shared", cacheA);
+  eq(I.resolveLevels([], "deepseek\u0000shared", cacheB).length, 0, "[49] 独立实例的空缓存不读到另一实例的模型档位");
+  eq(I.resolveLevels([], "deepseek\u0000shared", cacheA).length, 1, "[49] 缓存只在自己的实例内沿用");
 }
 
 section("50. 松手必须用 ref 读最新档位（窗口安全网不能调用首渲染的陈旧闭包）");
@@ -1640,7 +1779,7 @@ section("51. 快速动画（Codex 手感）：不跟手 + 一档一格 + 约 67m
     c.internals.writeSettings({ motion: "fast" });
     for (let k = 0; k < 8; k += 1) await Promise.resolve();
 
-    track(c.react).fire("onPointerDown", { clientX: 60, pointerId: 1 }); // 20% → 最近档 index 1
+    track(c.react).fire("onPointerDown", { clientX: c.internals.KNOB_RADIUS + (300 - 2 * c.internals.KNOB_RADIUS) / 3, pointerId: 1 }); // low 档中心 → 最近档 index 1
     await pump(c, 24);
     near(pctOf(c), 1 / 3, "[51] 按下后停在档位格（1/3），而不是指针的 20%（不跟手）", 2e-2);
 

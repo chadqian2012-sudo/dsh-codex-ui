@@ -246,6 +246,7 @@ export function createOfficialMenu(document, options = {}) {
   const effort = options.reasoning === false ? null : makeRow("推理等级", options.effortLabel ?? "High");
   const modelRow = model.row;
   const effortRow = effort === null ? null : effort.row;
+  let modelPane = null;
 
   return {
     composer,
@@ -259,6 +260,27 @@ export function createOfficialMenu(document, options = {}) {
     modelValueEl: model.valueSpan,
     effortLabelEl: effort === null ? null : effort.labelSpan,
     effortValueEl: effort === null ? null : effort.valueSpan,
+    showModels() {
+      menu.setAttribute("role", "group");
+      if (modelPane) modelPane.remove();
+      modelPane = new FakeNode("div");
+      modelPane.setAttribute("id", "model-models");
+      modelPane.setAttribute("role", "menu");
+      const option = new FakeNode("span");
+      option.setAttribute("data-provider-id", "deepseek");
+      option.setAttribute("data-model-id", "deepseek-v41-flash");
+      option.textContent = "DeepSeek-V41-Flash";
+      modelPane.appendChild(option);
+      menu.appendChild(modelPane);
+      return modelPane;
+    },
+    showRoot() {
+      if (modelPane) modelPane.remove();
+      modelPane = null;
+      menu.setAttribute("role", "menu");
+      return menu;
+    },
+    get modelPane() { return modelPane; },
     close() {
       seat.setAttribute("aria-expanded", "false");
       menu.remove();
@@ -495,6 +517,13 @@ export function createReactStub() {
       cursor = 0;
       portalHosts.length = 0;
       currentRoot = { type: Component, props: props ?? {}, parent: parent ?? null };
+      render();
+      return stub;
+    },
+    /** 更新现有根组件 props 并保留 hook 状态，用于模拟同组件实例切换会话。 */
+    updateProps(next) {
+      if (currentRoot === null) throw new Error("cannot update props before mount");
+      currentRoot.props = Object.assign({}, currentRoot.props, next ?? {});
       render();
       return stub;
     },

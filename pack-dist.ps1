@@ -1,57 +1,72 @@
-﻿<#
-  打包：生成可以直接发给别人的 zip（dist/<name>-<version>.zip）。
-
-  用法：  powershell -NoProfile -ExecutionPolicy Bypass -File pack-dist.ps1
-  说明：
-    · 内容按 package.json 的 `files` 白名单 + 安装脚本 + 许可证，**不含** node_modules/_review/dist
-    · 本插件零运行时依赖、无构建步骤，所以打出来的就是"解开即可装"
-    · 会强制把 .ps1 写成 **UTF-8 带 BOM**：Windows PowerShell 5.1 只有看到 BOM 才按 UTF-8 解析脚本，
-      否则中文注释会被按 ANSI 解码、整个脚本解析失败（踩过这个坑）
-#>
+﻿<# Create dist/<name>-<version>.zip. Paths are checked before recursive cleanup. #>
 [CmdletBinding()]
-param([string]$OutDir = "")
-
-$ErrorActionPreference = "Stop"
-$root = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
-$manifest = Get-Content (Join-Path $root "package.json") -Raw -Encoding utf8 | ConvertFrom-Json
-$name = $manifest.name
-$version = $manifest.version
-if (-not $OutDir) { $OutDir = Join-Path $root "dist" }
-
-$staging = Join-Path $OutDir $name
-if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
-New-Item -ItemType Directory -Force -Path $staging | Out-Null
-
-# package.json 必须进包（npm 会自动带，Compress-Archive 不会 —— 少了它 DSH 认不出这是插件）
-$include = @("package.json") + @($manifest.files) + @("LICENSE", "install-profile.ps1", "install.cmd")
-$copied = @()
-foreach ($entry in $include) {
-  $source = Join-Path $root $entry
-  if (-not (Test-Path $source)) { Write-Host "  跳过（不存在）：$entry" -ForegroundColor Yellow; continue }
-  $target = Join-Path $staging $entry
-  $parent = Split-Path -Parent $target
-  if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-  if ((Get-Item $source).PSIsContainer) {
-    Copy-Item $source $target -Recurse -Force
-  } else {
-    Copy-Item $source $target -Force
+param([string]$OutDir = '')
+$ErrorActionPreference='Stop'
+function Full([string]$p) { [IO.Path]::GetFullPath($p).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar) }
+function Under([string]$child,[string]$parent) { (Full $child).StartsWith((Full $parent)+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) }
+function Assert-SafeOutput([string]$p,[string]$out,[string]$label) {
+  if (-not (Under $p $out)) { throw "$label 不在输出目录内：$p" }
+  if ($p -match '(?i)(^|[\\/])\.(review|work)([\\/]|$)') { throw "$label 指向临时目录：$p" }
+  if (Test-Path -LiteralPath $p) { $i=Get-Item -LiteralPath $p -Force; if (($i.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "拒绝清理链接输出：$p" } }
+}
+function Assert-NoReparseAncestry([string]$p) {
+  $walk=Full $p
+  while ($walk) {
+    if (Test-Path -LiteralPath $walk) { $entry=Get-Item -LiteralPath $walk -Force; if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "输出/源路径经过链接：$walk" } }
+    $parent=Split-Path -Parent $walk
+    if (-not $parent -or $parent -eq $walk) { break }; $walk=$parent
   }
-  $copied += $entry
 }
-
-# .ps1 统一成 UTF-8 带 BOM（PS 5.1 的硬要求）
-Get-ChildItem $staging -Recurse -File -Filter *.ps1 | ForEach-Object {
-  $text = [System.IO.File]::ReadAllText($_.FullName, (New-Object System.Text.UTF8Encoding($false)))
-  [System.IO.File]::WriteAllText($_.FullName, $text, (New-Object System.Text.UTF8Encoding($true)))
+$root=Full $(if($PSScriptRoot){$PSScriptRoot}else{Split-Path -Parent $MyInvocation.MyCommand.Path})
+$manifestPath=Join-Path $root 'package.json'; if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw "缺少 package.json：$manifestPath" }
+$manifest=Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if (-not $manifest.name -or -not $manifest.version) { throw 'package.json 缺少 name/version。' }
+if (-not $OutDir) { $OutDir=Join-Path $root 'dist' }
+$out=Full $OutDir
+if ($out -eq $root) { throw '输出目录不能是仓库根目录。' }
+if ($out -match '(?i)(^|[\\/])\.(review|work)([\\/]|$)') { throw '输出目录不能是临时 .review/.work 目录。' }
+$stage=Full (Join-Path $out $manifest.name); $zip=Full (Join-Path $out ($manifest.name+'-'+$manifest.version+'.zip'))
+Assert-SafeOutput $stage $out 'staging'; Assert-SafeOutput $zip $out 'zip'
+Assert-NoReparseAncestry $out
+if (-not (Test-Path -LiteralPath $out)) { New-Item -ItemType Directory -Path $out | Out-Null }
+if (Test-Path -LiteralPath $stage) {
+  foreach($child in (Get-ChildItem -LiteralPath $stage -Recurse -Force)) {
+    if (-not (Under $child.FullName $stage)) { throw "staging 包含越界条目：$($child.FullName)" }
+    if (($child.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "拒绝递归清理含链接的 staging：$($child.FullName)" }
+  }
+  Remove-Item -LiteralPath $stage -Recurse -Force
 }
-
-$zip = Join-Path $OutDir "$name-$version.zip"
-if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path $staging -DestinationPath $zip -CompressionLevel Optimal
-
+New-Item -ItemType Directory -Path $stage | Out-Null
+$include=@('package.json')+@($manifest.files)+@('LICENSE','install-profile.ps1','install.cmd','INSTALL.md')
+$copied=@()
+foreach($entry in ($include | Select-Object -Unique)) {
+  if ([IO.Path]::IsPathRooted([string]$entry) -or ([string]$entry -split '[\\/]') -contains '..' -or ([string]$entry -match '(?i)(^|[\\/])\.(review|work)([\\/]|$)')) { throw "打包白名单包含不安全路径：$entry" }
+  $source=Full (Join-Path $root ([string]$entry))
+  if (-not (Under $source $root)) { throw "源文件越出仓库：$entry" }
+  if (-not (Test-Path -LiteralPath $source)) { Write-Host "  跳过（不存在）：$entry" -ForegroundColor Yellow; continue }
+  Assert-NoReparseAncestry $source
+  $target=Join-Path $stage ([string]$entry); $parent=Split-Path -Parent $target
+  if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+  $item=Get-Item -LiteralPath $source -Force
+  if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "拒绝打包链接源：$source" }
+  if ($item.PSIsContainer) {
+    foreach($child in (Get-ChildItem -LiteralPath $source -Recurse -Force)) {
+      if (-not (Under $child.FullName $source)) { throw "打包目录包含越界条目：$($child.FullName)" }
+      if (($child.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "拒绝打包链接条目：$($child.FullName)" }
+      if ($child.FullName -match '(?i)(^|[\\/])\.(review|work)([\\/]|$)') { throw "拒绝包含临时目录：$($child.FullName)" }
+    }
+  }
+  if ($item.PSIsContainer) { Copy-Item -LiteralPath $source -Destination $target -Recurse -Force }
+  else { Copy-Item -LiteralPath $source -Destination $target -Force }
+  $copied+=$entry
+}
+Get-ChildItem -LiteralPath $stage -Recurse -File -Filter '*.ps1' | ForEach-Object {
+  $content=[IO.File]::ReadAllText($_.FullName,(New-Object System.Text.UTF8Encoding($false)))
+  [IO.File]::WriteAllText($_.FullName,$content,(New-Object System.Text.UTF8Encoding($true)))
+}
+if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
+Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
 Write-Host "`n打包完成：$zip" -ForegroundColor Green
-Write-Host ("  {0}（{1:N0} KB）" -f (Split-Path -Leaf $zip), ((Get-Item $zip).Length / 1KB))
-Write-Host "  内容："
-Get-ChildItem $staging -Recurse -File | ForEach-Object {
-  Write-Host ("    {0,-44} {1,8:N0} B" -f $_.FullName.Substring($staging.Length + 1), $_.Length)
-}
+Write-Host ("  {0} ({1:N0} KB)" -f (Split-Path -Leaf $zip),((Get-Item -LiteralPath $zip).Length/1KB))
+Write-Host '  内容：'
+Get-ChildItem -LiteralPath $stage -Recurse -File | ForEach-Object { Write-Host ("    {0,-44} {1,8:N0} B" -f $_.FullName.Substring($stage.Length+1),$_.Length) }

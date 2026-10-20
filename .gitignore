@@ -2,6 +2,9 @@
 node_modules/
 dist/
 *.tgz
+.work/
+_review/
+release/
 
 # 编辑器 / 系统垃圾
 .DS_Store

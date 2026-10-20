@@ -1,9 +1,11 @@
 @echo off
-rem dsh-codex-effort-slider installer (Windows wrapper).
+rem dsh-codex-ui installer (Windows wrapper).
 rem Runs install-profile.ps1 with the execution policy bypassed for this run only
 rem (no machine-wide policy change). Pass through args, e.g.:
 rem   install.cmd -Profile tui
 rem   install.cmd -Uninstall
+rem   install.cmd -Rollback "C:\path\to\.dsh-plugin-backups\...\state.json"
+rem This installer never stops or restarts DSH.
 setlocal
 set "SCRIPT=%~dp0install-profile.ps1"
 if not exist "%SCRIPT%" (
