@@ -5,7 +5,7 @@
 ## 本次准备状态
 
 - 已准备预编译入口、DSH bundle 元数据、npm files 白名单与官方 publishConfig。
-- 已准备 CI 与 publish.yml。尚需维护者 GitHub/npm 登录后创建仓库、推送和首次 publish。
+- 已准备 CI 与 publish.yml，源码已保存为本地 Git 提交。尚需维护者 GitHub/npm 登录后创建远端仓库、推送和首次 publish。
 - 本机原安装工作区保持原身份；独立发布源码在 release/dsh-codex-ui，发布操作在该目录进行。
 - 远端仓库、tag、Release 与 npm 版本必须逐项查询验证后才能标为已发布。
 

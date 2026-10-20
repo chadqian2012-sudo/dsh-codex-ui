@@ -43,6 +43,7 @@ npm ci --ignore-scripts
 npm test
 npm run test:distribution
 npm run test:install
+npm run test:publish
 npm run test:native
 npm run test:browser
 npm run preview
