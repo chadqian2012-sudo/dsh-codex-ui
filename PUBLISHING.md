@@ -8,7 +8,7 @@
 - 2026-10-22 已完成首次公开发布：GitHub 仓库 [chadqian2012-sudo/dsh-codex-ui](https://github.com/chadqian2012-sudo/dsh-codex-ui) 为公开仓库，`v1.2.0` tag 指向提交 `6529a27d0e02abdfe1c815177da7c07d6a3558ff`，GitHub Release 与 npm `dsh-codex-ui@1.2.0` 均已发布。npm tarball shasum 为 `3f12d770adea4240e04b9f59a8057cdde791fd19`；registry integrity 见 VALIDATION.md。
 - 发布后官方 DSH CLI 隔离 profile 验收已通过：公开 npm 固定版本、公开固定 Git tag、本地发行目录，以及裸 Git URL 和不带版本号的 npm 名称均通过依赖／bundle 注册、`--dump-config` 和客户端 SHA256 核对。客户端 SHA256 为 `2aaba8634bd27910566d9c02038c4695379136af7e209b2ed1df2373d47ecb05`。CI Windows 与 Linux 均通过：[GitHub Actions run 39778359166](https://github.com/chadqian2012-sudo/dsh-codex-ui/actions/runs/39778359166)。验收回执见下方。
 - 独立发布源码在 release/dsh-codex-ui，发布操作在该目录进行；本机 Desktop profile 已备份并迁移到这个发行目录，旧根目录仅保留原身份供回滚。
-- 2026-10-22 发布前已完成真实 DSH 对话中的发送、流式输出、停止与停止后续聊验证，以及最新文字提示／关闭清理复验，详见 VALIDATION.md。发布后远端资源与隔离 CLI 下载检查已通过；桌面插件弹窗逐项粘贴 npm、Git、本地来源并安装的人工验收仍待完成。Windows MCP 用户控制状态反复出现，故不将其记为桌面弹窗安装或全量 GUI 通过。
+- 2026-10-22 发布前已完成真实 DSH 对话中的发送、流式输出、停止与停止后续聊验证，以及最新文字提示／关闭清理复验，详见 VALIDATION.md。发布后远端资源与隔离 CLI 下载检查已通过；桌面 Git URL 安装已由用户完成，并只读核对版本、bundle 注册和客户端哈希；用户随后另行确认使用 npm 包名下载完成，并要求停止后续验收。该次 npm 桌面安装来源和文件未独立复核，本地目录的桌面弹窗操作未重复测试；详细边界见 VALIDATION.md。
 
 ## 首次发布流程记录
 
@@ -57,6 +57,6 @@ git ls-remote https://github.com/chadqian2012-sudo/dsh-codex-ui.git refs/tags/v1
 
 使用独立 DSH_HOME/profile 分别安装 npm spec、固定 Git tag 和绝对本地目录，核对 bundle 注册、客户端 id 与入口均为 dsh-codex-ui，再用桌面版原生 UI 完成一次实际安装及菜单验证。不要用真实会话做破坏性测试。
 
-本机保留的 CLI 验收回执（位于被 Git 忽略的 .work，不随发行包分发）：`.work/native-home/public-runs/a05268af-cd90-46a8-936c-7a911f257ef3/public-install-results.json`（npm 固定版本、固定 Git tag、本地目录）；`.work/native-home/public-runs/341f4974-0b47-442b-8eeb-4579da946bdb/public-install-results.json`（裸 Git URL、无版本号 npm 名称）。回执记录隔离 profile、注册结果、配置解析结果和一致的客户端 SHA256。桌面原生插件弹窗中的逐项粘贴安装仍待人工验收。
+本机保留的 CLI 验收回执（位于被 Git 忽略的 .work，不随发行包分发）：`.work/native-home/public-runs/a05268af-cd90-46a8-936c-7a911f257ef3/public-install-results.json`（npm 固定版本、固定 Git tag、本地目录）；`.work/native-home/public-runs/341f4974-0b47-442b-8eeb-4579da946bdb/public-install-results.json`（裸 Git URL、无版本号 npm 名称）。回执记录隔离 profile、注册结果、配置解析结果和一致的客户端 SHA256。桌面 Git URL 验收回执另见本机 .work/gui-git-install-result.json；npm 包名下载由用户另行确认，未独立复核该次桌面安装文件。
 
 参考：[DSH 官方打包与安装文档](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md)、[npm publish](https://docs.npmjs.com/cli/v11/commands/npm-publish/)、[npm Trusted Publishers](https://docs.npmjs.com/trusted-publishers/)。

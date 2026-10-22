@@ -33,6 +33,10 @@ Desktop profile 已备份并从旧的 `dsh-codex-effort-slider` 迁移到本发�
 
 官方 DSH CLI 在全新隔离 DSH_HOME/profile 中完成了公开来源安装验收：`dsh-codex-ui@1.2.0`、固定 Git URL `git+https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.0`、本地发行目录、裸 Git URL `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.0` 和无版本号 npm 名称 `dsh-codex-ui`。所有来源均通过依赖和 bundle 注册、`--dump-config` 解析；已安装 `lib/client.js` SHA256 与发行源码相同，为 `2aaba8634bd27910566d9c02038c4695379136af7e209b2ed1df2373d47ecb05`。回执：`.work/native-home/public-runs/a05268af-cd90-46a8-936c-7a911f257ef3/public-install-results.json` 和 `.work/native-home/public-runs/341f4974-0b47-442b-8eeb-4579da946bdb/public-install-results.json`。
 
-**仍待补验：**在桌面版原生插件弹窗中，分别粘贴 npm、Git、本地目录来源并完成实际安装后的菜单验收。Windows MCP 用户控制状态反复出现，因此这里不声称桌面弹窗逐项安装或全量 GUI 验收已经通过。此前本地构造的 tgz／Git 验收仍保留为本地测试记录，不作为公开远端来源验收的替代。
+桌面 Git URL 验收补充：在全新隔离 Desktop profile 的原生“安装第三方插件”弹窗中，使用完整 `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.0` 地址和 npm 官方源。用户完成安装后，只读检查依赖记录为 `github:chadqian2012-sudo/dsh-codex-ui#v1.2.0`，包名／版本为 `dsh-codex-ui@1.2.0`，bundle 已注册，客户端 SHA256 与上述发行源码一致；安装后也观察到新的圆形滑块界面。本机回执为 `.work/gui-git-install-result.json`。
+
+桌面 npm 验收补充：首次在已有 Git 插件的 profile 中尝试时，用户反馈“提示插件已经安装”。这是同名插件保护，该次没有完成 npm 重新下载，不能当作 npm 下载通过。随后用户另行明确确认“我用 npm 包名下载好了”，并要求停止继续验收；据此记录为用户确认 npm 包名下载完成。该次桌面操作的安装来源、文件和加载状态未独立复核，不将其写为代理自动化验收通过。公开 npm 包的实际下载、安装、bundle 注册、配置解析和哈希核对已由上面的独立官方 CLI 测试完成。
+
+本地目录的原生弹窗操作未逐项重复验收，官方 CLI 的本地目录安装已通过。此前本地构造的 tgz／Git 验收仍保留为本地测试记录，不作为公开远端来源验收的替代。
 
 预览截图来自隔离 React/DSH 样式 fixture，模型名为测试数据。总览为 `preview/screenshots/v1.2.0/overview.png`。
