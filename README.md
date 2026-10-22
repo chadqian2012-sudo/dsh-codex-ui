@@ -14,7 +14,7 @@ DeepSeek Harness 的 Codex 风格模型与推理等级弹窗。独立发行名�
 | Git 仓库 | `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.0` |
 | 本地目录 | 本地发行目录 `D:\Codex DSH-Plug-in\release\dsh-codex-ui`，或解压后直接包含 `package.json` 的文件夹绝对路径 |
 
-发布状态与验收记录见 [PUBLISHING.md](PUBLISHING.md)；远端验证在本说明准备时仍待完成。本地目录来源可直接指向此发布目录。
+**1.2.0 已公开发布。** GitHub 仓库、v1.2.0 tag、Release 和 npm 包均可用；隔离 DSH CLI 已从公开 npm 固定版本、公开 Git tag 和本地目录安装并核对 bundle 与入口一致。桌面插件弹窗中逐项粘贴三种来源的安装验收仍待完成，见 [PUBLISHING.md](PUBLISHING.md) 与 [VALIDATION.md](VALIDATION.md)。本地目录来源可直接指向此发布目录。
 
 npm 下载源优先选择「npm 官方源」`https://registry.npmjs.org/`；需要时可选择镜像源 `https://registry.npmmirror.com/`，新版本可能尚未同步。Git 和本地目录来源无需配置 npm 包的下载源。本仓库的 `.npmrc` 仅为当前项目指定官方源，不改变全局配置。
 
@@ -59,5 +59,7 @@ npm run pack
 基础测试与发行工件测试不需要 DSH 或模型账号。`test:native`、`test:browser` 和预览读取本机 DSH 的官方 CSS／菜单契约；可用 `DSH_APP_ASAR` 指定 `app.asar`，用 `BROWSER_EXECUTABLE` 指定 Chromium 程序。浏览器目录替身不连接真实会话或调用模型。完整验证范围见 [VALIDATION.md](VALIDATION.md)。
 
 ## English
+
+Version 1.2.0 is publicly available on GitHub and npm. Isolated DSH CLI installs from the public npm version, fixed Git tag, and local directory passed package and bundle checks. Pasting each source into the Desktop plugin dialog still needs manual verification; see [PUBLISHING.md](PUBLISHING.md) and [VALIDATION.md](VALIDATION.md).
 
 Codex-style model and effort menus for DeepSeek Harness, distributed independently as `dsh-codex-ui`. The seven display tiers map to the four actual DeepSeek effort IDs: Off (`off`), Low (`low`), Medium (`low`), High (`high`), XHigh (`high`), Max (`max`) and Ultra (`max`); display labels do not claim quality equivalence. The interface is scaled to 90% of its original size, with an approximately 342×130px card, 18px tier heading, 16px model name, 20px icons, a 32px track and a 36px circular knob. Explicit rounded corners on the track layers and knob override DSH's global `corner-shape: superellipse(1.5)`. Off stays gray; Low through Max stay blue. During the final sixth of slider travel from Max to Ultra, the purple gradient and stardust fade in with smoothstep; they fade out smoothly on retreat. Ultra particles traverse the track in about 3 seconds, or about 1.7 seconds with the visual-only boost enabled, preserving the 1.8x speed ratio and phase continuity. Gray dust in the blue region keeps its previous speed. Enabling the lightning fades the model name out, briefly shows the requested Chinese notice, then restores the native model entry; disabling it cancels that notice. The lightning has no hover tooltip. The notice does not change actual requests or quota behavior. The lightning control uses a solid SVG on a light-gray rounded base. Remove the upstream `dsh-codex-effort-slider` first. Install from npm, the tagged Git repository, or an absolute local package directory after confirming the chosen source is available. The package ships prebuilt JavaScript with no runtime dependencies or install scripts. Original MIT copyright and attribution are retained.

@@ -29,6 +29,10 @@ Desktop profile 已备份并从旧的 `dsh-codex-effort-slider` 迁移到本发�
 
 ## 远端发布和下载验证
 
-GitHub 仓库、tag、Release 与 npm 版本在本记录准备时尚未发布。发布之后还必须使用官方 DSH 原生安装入口／同一安装服务，分别验证公开 Git URL、npm 官方源和本地目录的实际下载、依赖/bundle 注册及加载；不得以本地三来源测试替代远端下载验收。
+2026-10-22 已完成公开发布：GitHub 仓库 [chadqian2012-sudo/dsh-codex-ui](https://github.com/chadqian2012-sudo/dsh-codex-ui)，tag `v1.2.0` 指向 `6529a27d0e02abdfe1c815177da7c07d6a3558ff`，GitHub Release 和 npm `dsh-codex-ui@1.2.0` 均可用。npm shasum 为 `3f12d770adea4240e04b9f59a8057cdde791fd19`；registry integrity 为 `sha512-qvDKpRx0p4RnAHPLzvQy/u0ydt9zt2HqRjraTdIYNMoTSUkidZhKgotijHU0VND1UUwZXCr+6M/OSx95B02ywg==`。CI Windows/Linux 均成功：[GitHub Actions run 39778359166](https://github.com/chadqian2012-sudo/dsh-codex-ui/actions/runs/39778359166)。
+
+官方 DSH CLI 在全新隔离 DSH_HOME/profile 中完成了公开来源安装验收：`dsh-codex-ui@1.2.0`、固定 Git URL `git+https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.0`、本地发行目录、裸 Git URL `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.0` 和无版本号 npm 名称 `dsh-codex-ui`。所有来源均通过依赖和 bundle 注册、`--dump-config` 解析；已安装 `lib/client.js` SHA256 与发行源码相同，为 `2aaba8634bd27910566d9c02038c4695379136af7e209b2ed1df2373d47ecb05`。回执：`.work/native-home/public-runs/a05268af-cd90-46a8-936c-7a911f257ef3/public-install-results.json` 和 `.work/native-home/public-runs/341f4974-0b47-442b-8eeb-4579da946bdb/public-install-results.json`。
+
+**仍待补验：**在桌面版原生插件弹窗中，分别粘贴 npm、Git、本地目录来源并完成实际安装后的菜单验收。Windows MCP 用户控制状态反复出现，因此这里不声称桌面弹窗逐项安装或全量 GUI 验收已经通过。此前本地构造的 tgz／Git 验收仍保留为本地测试记录，不作为公开远端来源验收的替代。
 
 预览截图来自隔离 React/DSH 样式 fixture，模型名为测试数据。总览为 `preview/screenshots/v1.2.0/overview.png`。

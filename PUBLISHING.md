@@ -2,16 +2,19 @@
 
 目标仓库：`chadqian2012-sudo/dsh-codex-ui`。目标 npm 包：`dsh-codex-ui`。首个独立发行版本：`1.2.0`。上游同名 npm 包已存在，所以使用新的发行身份；LICENSE 保留上游全文。
 
-## 本次准备状态
+## 本次准备与发布状态
 
 - 已准备预编译入口、DSH bundle 元数据、npm files 白名单与官方 publishConfig。
-- 已准备 CI 与 publish.yml，源码已保存为本地 Git 提交；维护者 GitHub 与 npm 登录已验证。GitHub 仓库、tag、Release 与 npm 版本尚未发布，远端验证仍待完成。
+- 2026-10-22 已完成首次公开发布：GitHub 仓库 [chadqian2012-sudo/dsh-codex-ui](https://github.com/chadqian2012-sudo/dsh-codex-ui) 为公开仓库，`v1.2.0` tag 指向提交 `6529a27d0e02abdfe1c815177da7c07d6a3558ff`，GitHub Release 与 npm `dsh-codex-ui@1.2.0` 均已发布。npm tarball shasum 为 `3f12d770adea4240e04b9f59a8057cdde791fd19`；registry integrity 见 VALIDATION.md。
+- 发布后官方 DSH CLI 隔离 profile 验收已通过：公开 npm 固定版本、公开固定 Git tag、本地发行目录，以及裸 Git URL 和不带版本号的 npm 名称均通过依赖／bundle 注册、`--dump-config` 和客户端 SHA256 核对。客户端 SHA256 为 `2aaba8634bd27910566d9c02038c4695379136af7e209b2ed1df2373d47ecb05`。CI Windows 与 Linux 均通过：[GitHub Actions run 39778359166](https://github.com/chadqian2012-sudo/dsh-codex-ui/actions/runs/39778359166)。验收回执见下方。
 - 独立发布源码在 release/dsh-codex-ui，发布操作在该目录进行；本机 Desktop profile 已备份并迁移到这个发行目录，旧根目录仅保留原身份供回滚。
-- 2026-10-22 已完成真实 DSH 对话中的发送、流式输出、停止与停止后续聊验证，以及最新文字提示／关闭清理复验，详见 VALIDATION.md。可以继续创建／推送公开仓库与 tag、发布 npm，并逐项查询 GitHub 仓库、tag、Release 与 npm 版本；只有这些远端检查通过后才能标为已发布。
+- 2026-10-22 发布前已完成真实 DSH 对话中的发送、流式输出、停止与停止后续聊验证，以及最新文字提示／关闭清理复验，详见 VALIDATION.md。发布后远端资源与隔离 CLI 下载检查已通过；桌面插件弹窗逐项粘贴 npm、Git、本地来源并安装的人工验收仍待完成。Windows MCP 用户控制状态反复出现，故不将其记为桌面弹窗安装或全量 GUI 通过。
 
-## 首次发布
+## 首次发布流程记录
 
-维护者应在自己的终端确认 GitHub 与 npm 登录仍有效，无需在源码、工作流或聊天中填写密码/令牌。完成上述真实对话实机验证后，在发布源码目录运行：
+以下保留首次发布时的准备流程作为历史记录。`1.2.0` 已发布，不要再次执行首次发布命令或尝试覆盖同名版本。
+
+首次发布前，维护者在自己的终端确认 GitHub 与 npm 登录有效；密码和令牌不写入源码、工作流或聊天。以下命令保留为当时的准备流程记录；`1.2.0` 已完成发布，切勿重跑 `npm publish`：
 
 ```powershell
 npm ci --ignore-scripts
@@ -53,5 +56,7 @@ git ls-remote https://github.com/chadqian2012-sudo/dsh-codex-ui.git refs/tags/v1
 ```
 
 使用独立 DSH_HOME/profile 分别安装 npm spec、固定 Git tag 和绝对本地目录，核对 bundle 注册、客户端 id 与入口均为 dsh-codex-ui，再用桌面版原生 UI 完成一次实际安装及菜单验证。不要用真实会话做破坏性测试。
+
+本机保留的 CLI 验收回执（位于被 Git 忽略的 .work，不随发行包分发）：`.work/native-home/public-runs/a05268af-cd90-46a8-936c-7a911f257ef3/public-install-results.json`（npm 固定版本、固定 Git tag、本地目录）；`.work/native-home/public-runs/341f4974-0b47-442b-8eeb-4579da946bdb/public-install-results.json`（裸 Git URL、无版本号 npm 名称）。回执记录隔离 profile、注册结果、配置解析结果和一致的客户端 SHA256。桌面原生插件弹窗中的逐项粘贴安装仍待人工验收。
 
 参考：[DSH 官方打包与安装文档](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md)、[npm publish](https://docs.npmjs.com/cli/v11/commands/npm-publish/)、[npm Trusted Publishers](https://docs.npmjs.com/trusted-publishers/)。
