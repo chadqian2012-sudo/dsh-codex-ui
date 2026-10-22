@@ -53,7 +53,7 @@ export function readOfficialCss(asarPath = ASAR_PATH) {
   const source = readAsarEntry(OFFICIAL_CLIENT_PATH, asarPath).toString('utf8');
   const literal = source.match(/const css = ("(?:\\.|[^"\\])*");/);
   if (!literal) throw new Error('Could not locate official ModelSelect CSS in the installed package');
-  return JSON.parse(literal[1]);
+  return JSON.parse(literal[1]) + '\n@supports(corner-shape:superellipse(1.5)){:root{--dsw-corner-shape:superellipse(1.5)}*,:before,:after{corner-shape:var(--dsw-corner-shape)}}';
 }
 
 export function resolveBrowser() {
@@ -101,21 +101,28 @@ export const fixtureUi = String.raw`
   const React = window.React;
   const ReactDOM = window.ReactDOM;
   const h = React.createElement;
-  const state = window.__fixture = { opens: 0, messages: 0, selections: [], current: {provider:'deepseek', model:'deepseek-chat'}, effort:'high', pending:null, generation:0, pane:'root', reports:[] };
-  const listeners = new Set();
   const levels=[{id:'off',name:'Off'},{id:'low',name:'Low'},{id:'high',name:'High'},{id:'max',name:'Max'}];
-  function makeSnapshot(){ return { current:{...state.current,reasoningEffort:state.effort}, value:{...state.current, reasoningEffort:state.effort}, status:state.pending?'selecting':'ready', pending:state.pending&&{...state.pending}, error:null, groups:[{id:'deepseek',name:'DeepSeek',models:[{id:'deepseek-chat',name:'DeepSeek Chat',reasoning:{efforts:levels,defaultEffort:'high'}},{id:'deepseek-reasoner',name:'DeepSeek Reasoner',reasoning:{efforts:levels,defaultEffort:'high'}}]}] }; }
-  let cachedSnapshot=makeSnapshot();
-  const snapshot = () => cachedSnapshot;
-  const publish = () => { cachedSnapshot=makeSnapshot(); for(const fn of listeners)fn(); };
-  const directory = {
-    store:{ getSnapshot:snapshot, subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);} },
-    load(){},
-    select(selection){ state.selections.push({...selection}); const generation=++state.generation; state.pending={...selection}; publish(); return new Promise((resolve)=>setTimeout(()=>{ if(generation!==state.generation)return resolve(); state.current={provider:selection.provider,model:selection.model}; if(selection.reasoningEffort!==undefined)state.effort=selection.reasoningEffort; else state.effort='high'; state.pending=null; publish(); resolve(snapshot().value); },90)); }
-  };
+  const sessions=new Map();
+  function getSession(id){
+    if(sessions.has(id))return sessions.get(id);
+    const session={id,opens:0,messages:0,selections:[],current:{provider:'deepseek',model:'deepseek-chat'},effort:'high',pending:null,generation:0,pane:'root',reports:[],directoryLookups:[]};
+    const listeners=new Set();
+    function makeSnapshot(){return {current:{...session.current,reasoningEffort:session.effort},value:{...session.current,reasoningEffort:session.effort},status:session.pending?'selecting':'ready',pending:session.pending&&{...session.pending},error:null,groups:[{id:'deepseek',name:'DeepSeek',models:[{id:'deepseek-chat',name:'DeepSeek Chat',reasoning:{efforts:levels,defaultEffort:'high'}},{id:'deepseek-reasoner',name:'DeepSeek Reasoner',reasoning:{efforts:levels,defaultEffort:'max'}}]}]};}
+    let cachedSnapshot=makeSnapshot();
+    const publish=()=>{cachedSnapshot=makeSnapshot();session.reports.push({effort:session.effort,pending:session.pending&&{...session.pending}});for(const fn of listeners)fn();};
+    session.report=(effort)=>{session.effort=effort;publish();};
+    session.directory={store:{getSnapshot:()=>cachedSnapshot,subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);}},load(){},select(selection){session.selections.push({...selection});const generation=++session.generation;session.pending={...selection};publish();return new Promise((resolve)=>setTimeout(()=>{if(generation!==session.generation)return resolve();session.current={provider:selection.provider,model:selection.model};if(selection.reasoningEffort!==undefined)session.effort=selection.reasoningEffort;else session.effort=selection.model==='deepseek-reasoner'?'max':'high';session.pending=null;publish();resolve(cachedSnapshot.value);},90));}};
+    sessions.set(id,session);
+    return session;
+  }
+  const primarySessionId=new URL(location.href).searchParams.get('session')||'session-1';
+  const state=window.__fixture=getSession(primarySessionId);
+  window.__fixtureSessions=sessions;
   const modelName=(id)=>id==='deepseek-chat'?'DeepSeek-V4.1-Flash':id==='deepseek-reasoner'?'DeepSeek-R1':id;
-  const menuId='official-model-menu';
-  function OfficialModelSelect(){
+  function OfficialModelSelect({sessionId}){
+    const state=getSession(sessionId);
+    const directory=state.directory;
+    const menuId='official-model-menu-'+sessionId;
     const [open,setOpen]=React.useState(false),[pane,setPane]=React.useState('root');
     const [menuPos,setMenuPos]=React.useState(null), triggerRef=React.useRef(null), menuRef=React.useRef(null);
     state.pane=pane;
@@ -141,15 +148,15 @@ export const fixtureUi = String.raw`
     ]) : null;
     return h('div',{className:'wq12jW_root',onKeyDown:(event)=>{if(event.key==='Escape'&&open){event.preventDefault();if(pane!=='root')setPane('root');else setOpen(false);triggerRef.current?.focus();}}},h('button',{ref:triggerRef,type:'button','aria-label':'Select model','aria-haspopup':'menu','aria-expanded':String(open),'aria-controls':open?menuId:undefined,onClick:()=>{state.opens++;setOpen(!open);setPane('root')}},'DeepSeek'),menu && ReactDOM.createPortal(menu,document.body));
   }
-  function App(){return h('div',{ 'data-composer-card':'' },h(OfficialModelSelect),h('div',{id:'slot-mount'}));}
-  window.__fixtureRender=()=>ReactDOM.render(h(App),document.getElementById('app'));
+  function App({sessionId}){return h('div',{'data-composer-card':'','data-fixture-session':sessionId},h(OfficialModelSelect,{sessionId}),h('div',{className:'slot-mount'},window.__slotComponent?h(window.__slotComponent,{sessionId}):null));}
+  window.__fixtureRender=(sessionId=primarySessionId)=>ReactDOM.render(h(App,{sessionId}),document.getElementById('app'));
+  window.__mountSecondSession=()=>{if(document.getElementById('app-session-2'))return;const root=document.createElement('div');root.id='app-session-2';document.body.appendChild(root);ReactDOM.render(h(App,{sessionId:'session-2'}),root);};
   window.__ModuleLoader__={load(registration){window.__registration=registration;}};
   window.__fixtureRender();
-  state.directoryLookups=[];
-  const ctx={ slots:{ inject(_name,setup){setup();}, register(entry,SlotComponent){setTimeout(()=>ReactDOM.render(h(SlotComponent,{sessionId:new URL(location.href).searchParams.get('session')||'session-1'}),document.getElementById('slot-mount')),0);return()=>{};} }, modelDirectories:{directoryFor(sessionId){state.directoryLookups.push(sessionId);return sessionId.startsWith('session-')?directory:null;}}, sessions:{}, remote:{}, console };
+  const ctx={slots:{inject(_name,setup){setup();},register(entry,SlotComponent){window.__slotComponent=SlotComponent;setTimeout(()=>window.__fixtureRender(),0);return()=>{};}},modelDirectories:{directoryFor(sessionId){const session=getSession(sessionId);session.directoryLookups.push(sessionId);return sessionId.startsWith('session-')?session.directory:null;}},sessions:{},remote:{},console};
   window.__loadPlugin=()=>{window.__plugin=window.__registration.factory((name)=>name==='react'?React:name==='react-dom'?ReactDOM:(()=>{throw Error('Unexpected require '+name)})());return window.__plugin;};
   window.__applyPlugin=()=>window.__loadPlugin().apply(ctx);
-  window.__directory=directory;
+  window.__directory=state.directory;
 `;
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

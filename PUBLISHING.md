@@ -5,13 +5,13 @@
 ## 本次准备状态
 
 - 已准备预编译入口、DSH bundle 元数据、npm files 白名单与官方 publishConfig。
-- 已准备 CI 与 publish.yml，源码已保存为本地 Git 提交。尚需维护者 GitHub/npm 登录后创建远端仓库、推送和首次 publish。
-- 本机原安装工作区保持原身份；独立发布源码在 release/dsh-codex-ui，发布操作在该目录进行。
-- 远端仓库、tag、Release 与 npm 版本必须逐项查询验证后才能标为已发布。
+- 已准备 CI 与 publish.yml，源码已保存为本地 Git 提交；维护者 GitHub 与 npm 登录已验证。GitHub 仓库、tag、Release 与 npm 版本尚未发布，远端验证仍待完成。
+- 独立发布源码在 release/dsh-codex-ui，发布操作在该目录进行；本机 Desktop profile 已备份并迁移到这个发行目录，旧根目录仅保留原身份供回滚。
+- 2026-10-22 已完成真实 DSH 对话中的发送、流式输出、停止与停止后续聊验证，以及最新文字提示／关闭清理复验，详见 VALIDATION.md。可以继续创建／推送公开仓库与 tag、发布 npm，并逐项查询 GitHub 仓库、tag、Release 与 npm 版本；只有这些远端检查通过后才能标为已发布。
 
 ## 首次发布
 
-维护者在自己的终端完成 `gh auth login` 与 `npm login --registry=https://registry.npmjs.org/`，无需在源码、工作流或聊天中填写密码/令牌。随后在发布源码目录运行：
+维护者应在自己的终端确认 GitHub 与 npm 登录仍有效，无需在源码、工作流或聊天中填写密码/令牌。完成上述真实对话实机验证后，在发布源码目录运行：
 
 ```powershell
 npm ci --ignore-scripts

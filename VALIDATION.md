@@ -1,24 +1,34 @@
 # 1.2.0 验证记录
 
-验证日期：2026-10-20（Asia/Shanghai）。独立发行包名：`dsh-codex-ui`。
+验证日期：2026-10-22（Asia/Shanghai）。独立发行包名：`dsh-codex-ui`。
 
-- 上游基线：`d1bb67b20bc19d44be7d7694ffca92a6f2fcbe9b`，版本 1.1.2；MIT 版权及许可原文保留。
-- 本机 DSH 官方运行时／模型菜单：`0.2.1-rc.2`。只读解析 app.asar，未修改它。
-- 独立发行身份改名后的客户端回归：**491 项通过，0 项失败**。含提交去重／合并／回滚、重置省略 reasoningEffort、同模型跨会话隔离、卸载清理与星尘相位连续性。
-- 官方源码契约：**3 个测试通过**。核对 aria-controls、根／模型 pane roles、列表标记、pending／generation 防护、四个真实 effort ID 和默认值解析。
-- 真实 Chromium + React 18：**3 个场景通过**。含菜单来回切换、四档键盘、触屏拖动、延迟目录回报、键盘重置、Esc 关闭、会话隔离及无消息副作用。
-- Windows PowerShell 5.1 安装器：**20 项测试通过**。含首次安装、实体目录／正确及错误 junction 更新、重复安装、卸载、手动回滚、WhatIf、manifest 锁冲突恢复；新增旧版仍注册时拒绝安装，并确认原清单字节与目录未改变。
-- 发行工件：实际 `npm pack` 白名单检查通过，实际 tgz、本地目录、从同一产物建立的 Git tag 三种隔离消费安装均通过。验证无运行时依赖／安装生命周期脚本，包名、client 注册、Cordis 名称及宿主入口一致。Git 使用本地 `git+file://` 固定 tag，尚不代表公开 GitHub 已发布。
-- 官方 Desktop CLI 的真实安装链路：在临时 DSH_HOME 的独立 profile 中，本地目录和 tgz 安装成功，自动注册依赖与 dsh.profile.bundles，`--dump-config` 成功解析插件。目录保存为 `link:`，tgz 保存为 `file:`。未读取或修改真实 Desktop profile。
-- 补充官方 CLI 的 Git 来源：通过本地 Git URL 固定提交 `b0841c47c16ad0e01777f610445f49e51e0e7de1` 安装，依赖和 bundle 自动注册，`--dump-config` 成功。该验证不依赖尚未创建的公开仓库，也不代表远端网络下载已经验证。
-- 发布流程：**15 项模拟断言通过**。含首次新建仓库、已有仓库、非 404 错误、工作目录、已存在版本／tag 保护、npm 交互输出与失败中止；没有真实外部发布写入。GitHub 发布工作流强制选择与包版本一致的 tag。
-- 视觉：浅／深色、320／1280 CSS 像素宽度、DPR 1／1.25／1.5 共 12 张矩阵图；四档和模型列表裁切图；100%／125%／150% 等效缩放图。边界检查通过。
-- 滑块运动：与基线逐项比较 MOTION、MOTION_REDUCED、MOTION_FAST、motionStep、motionSettled、releaseIndexFor、detentTargetIndex、decayPointerSpeed，均未改变。
+- 上游基线：`d1bb67b20bc19d44be7d7694ffca92a6f2fcbe9b`（1.1.2）；保留 MIT 版权和许可原文。
+- 本机 DSH：`0.2.1-rc.2`。只读核对官方 app.asar 的模型菜单、目录接口和全局 superellipse CSS，没有修改宿主程序文件。
+- 客户端核心回归：**540 项通过，0 项失败**。覆盖七档显示到四个原生 ID 的映射、别名记忆、去重提交、重置竞态、超时回滚、会话隔离、连续相位和运动稳定性。Ultra 正常与快速模式的相位实际位移比为 1.8，速度不再被旧上限截断。
+- 真实 Chromium + React 18：**4 个场景通过**。覆盖 native root/model 面板切换、七档键盘、触屏、双 composer 隔离、圆形几何、Ultra 渐显、开启时的文字提示、关闭和重开时的清理。提示动画期间原生模型行仍可点击；没有生成消息或额外的目录提交。
+- 原生菜单契约：**3 个测试通过**。核对 aria-controls、root/model roles、模型 ID、pending/generation 防护、四个真实 effort ID 与默认值解析。
+- Windows PowerShell 5.1 安装器：**20 项通过**。覆盖首次安装、实体目录和 junction 更新、重复安装、卸载、回滚、清单锁冲突恢复、旧版插件冲突拒绝。只有本插件目录和相关清单项可变更。
+- 发布脚本模拟：**16 项通过**。包括 GitHub 和 npm 精确账号校验、干净工作树、已有版本/tag 保护、先测试后外部写入，以及发布失败中止。模拟通过不等于实际发布。
+- ZIP：**4 项通过**。使用标准正斜杠 entry 路径；排除开发文件；入口可解析；客户端与源文件字节一致。
+- 三来源隔离消费：实际 tgz、本地目录及从同一产物构造的固定 Git tag 安装通过。包内无运行时依赖或安装生命周期脚本。该 Git 来源为本地 Git URL，不代替公开 GitHub 下载验收。
+- 官方 Desktop CLI：在隔离 DSH_HOME 的独立 profile 内，本地目录、tgz 和固定 Git 提交安装与 `--dump-config` 均已通过。依赖和 bundle 自动注册。早期沙箱 EPERM 后，获批的真实 Windows 环境重跑成功；未更改系统安全设置。
+- 视觉：浅／深色、320／1280 CSS 像素宽度、DPR 1／1.25／1.5 的 12 张矩阵图，以及 100%／125%／150% 等效缩放检查通过。fixture 加载 DSH 的全局 `corner-shape:superellipse(1.5)`，旋钮和轨道显式覆盖为 round。
+- 滑块运动：MOTION、MOTION_REDUCED、MOTION_FAST、motionStep、motionSettled、releaseIndexFor、detentTargetIndex、decayPointerSpeed 沿用原基线。仅改视觉能量和星尘相位速度。
 
-Windows 沙箱最初拦截 pnpm 符号链接与 Git for Windows 的 MSYS 命名对象；使用获批的本机进程环境重跑后成功。该限制与插件加载失败不同，未通过更改系统安全设置解决。
+## 本机 UI 和对话验证边界
 
-浏览器场景运行真实插件 bundle、DSH 官方 CSS 和隔离模型目录替身。没有向真实会话发送消息或调用真实模型，发送、流式输出、停止、续聊仍未做实机端到端测试；当前 Windows 锁屏，桌面 UI 验收待解锁。
+Desktop profile 已备份并从旧的 `dsh-codex-effort-slider` 迁移到本发行目录。迁移前后比较，其他插件和 profile 配置值一致；未修改既有会话和用户草稿。
 
-公开 GitHub 仓库、Release、tag 和 npm registry 版本在本次准备阶段尚未发布，等待维护者登录。官方 CLI 的远端 npm／远端 Git 安装仍须在发布成功后复核；不能用本地三来源测试替代这一项。
+2026-10-21 使用 Windows MCP 在独立“DSH UI 插件验收测试”会话中，已观察到标准圆形旋钮、圆弧轨道、Max 蓝色／Ultra 紫色、闪电状态、重置默认 High，以及 Flash → Pro → Flash 的原生模型选择。普通消息返回 `DSH-UI-OK`，长回复完成到 `DSH-STREAM-1000`。这些是当时已加载客户端的实机结果。
 
-截图来自隔离环境，模型条目为测试数据；真实安装由 DSH 原生目录提供。`preview/screenshots/v1.2.0/overview.png` 为总览。
+2026-10-22 在上述独立测试会话中刷新加载最新客户端，并使用 Windows MCP 复验：Max 蓝色、Ultra 紫色、Off 灰色；圆形旋钮与轨道；开启闪电时显示“使用额度消耗更快”并自动恢复模型名称，关闭时不重播提示；High 蓝色区域开启闪电后出现灰色移动星尘；重置恢复 High；原生模型列表可打开，Esc 可返回并关闭。正常／快速速度比 1.8 由帧时钟测试定量确认，实机确认两种状态均持续显示星尘。
+
+同日实际发送独立的 2000 行流式测试请求，观察到持续输出后点击原生停止按钮，回复在约 `DSH-STOP-TEST-1059` 处中断且显示“已停止”；随后发送续聊请求，正常返回 `DSH-RESUME-OK`，状态显示“已完成”，输入框恢复可发送。没有调用模型工具或操作用户文件。测试结束保持会话空闲、闪电关闭、默认 High。
+
+这些结果确认已覆盖的发送、流式、停止、续聊和菜单流程可用，不代表对所有宿主功能作无回归保证。方向键、Home/End、触屏与窄屏／缩放矩阵由上述 Chromium 场景覆盖，未将其全部记为真实桌面人工验收。
+
+## 远端发布和下载验证
+
+GitHub 仓库、tag、Release 与 npm 版本在本记录准备时尚未发布。发布之后还必须使用官方 DSH 原生安装入口／同一安装服务，分别验证公开 Git URL、npm 官方源和本地目录的实际下载、依赖/bundle 注册及加载；不得以本地三来源测试替代远端下载验收。
+
+预览截图来自隔离 React/DSH 样式 fixture，模型名为测试数据。总览为 `preview/screenshots/v1.2.0/overview.png`。

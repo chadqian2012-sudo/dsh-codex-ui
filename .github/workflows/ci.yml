@@ -28,3 +28,5 @@ jobs:
         run: powershell -NoProfile -ExecutionPolicy Bypass -File test/install.test.ps1
       - if: runner.os == 'Windows'
         run: npm run test:publish
+      - if: runner.os == 'Windows'
+        run: npm run test:zip

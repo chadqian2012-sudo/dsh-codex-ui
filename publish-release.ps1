@@ -97,6 +97,7 @@ $GhLogin = (Require-Success (Invoke-Captured 'gh' @('api', 'user', '--jq', '.log
 if ($GhLogin -cne $Owner) { Stop-Release "当前 GitHub 账号不是 $Owner；已停止。" }
 $NpmLogin = (Require-Success (Invoke-Captured 'npm' @('whoami', '--registry', $Registry) '检查 npm 登录')).Trim()
 if ([string]::IsNullOrWhiteSpace($NpmLogin)) { Stop-Release 'npm whoami 未返回账号；已停止。' }
+if ($NpmLogin -cne 'chad_0314') { Stop-Release '当前 npm 账号不是 chad_0314；已停止。' }
 $null = Require-Success (Invoke-Captured 'npm' @('test') '运行 npm test')
 $null = Require-Success (Invoke-Captured 'npm' @('run', 'test:distribution') '运行 distribution tests')
 $HeadAfterTests = (Require-Success (Invoke-Captured 'git' @('-C', $Root, 'rev-parse', 'HEAD') '复核发布提交')).Trim()
@@ -169,7 +170,9 @@ $PackNpmText = Require-Success $PackNpm
 if (-not (Test-Path -LiteralPath $TarballPath -PathType Leaf)) { Stop-Release 'npm pack 没有生成预期 tarball。' }
 $SumLines = @()
 foreach ($Artifact in @($TarballPath, $ZipPath)) {
-  $Hash = (Get-FileHash -LiteralPath $Artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+  $ArtifactStream = [IO.File]::OpenRead($Artifact)
+  try { $Hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($ArtifactStream)).Replace('-','').ToLowerInvariant() }
+  finally { $ArtifactStream.Dispose() }
   $SumLines += "$Hash  $(Split-Path -Leaf $Artifact)"
 }
 [IO.File]::WriteAllLines($SumsPath, $SumLines, (New-Object System.Text.UTF8Encoding($false)))

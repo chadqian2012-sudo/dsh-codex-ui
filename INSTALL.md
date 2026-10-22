@@ -2,6 +2,8 @@
 
 本发行版的包名是 `dsh-codex-ui`，与上游 `dsh-codex-effort-slider` 区分。三种来源使用相同的包入口、客户端注册 ID 和 bundle patch，任选一种安装。
 
+此工作区的本地安装目标是 `D:\Codex DSH-Plug-in\release\dsh-codex-ui`。首次发布准备时的远端验收记录见 [PUBLISHING.md](PUBLISHING.md)。
+
 ## 安装前
 
 先结束正在进行的模型推理。在 DSH 插件管理页查看已安装项；若有 `dsh-codex-effort-slider`，先卸载它，再安装 `dsh-codex-ui`，避免两个界面装饰器同时运行。不要删除 DSH 会话目录或修改 `app.asar`。
@@ -14,7 +16,7 @@
 dsh-codex-ui@1.2.0
 ```
 
-下载源选择「npm 官方源」：`https://registry.npmjs.org/`。也可使用「中国镜像源」`https://registry.npmmirror.com/`；若新版本尚未同步，切回官方源。仅在首次公开发布完成后，远端包名才可解析；维护者检查方法见 PUBLISHING.md。
+下载源选择「npm 官方源」：`https://registry.npmjs.org/`。也可使用「中国镜像源」`https://registry.npmmirror.com/`；若新版本尚未同步，切回官方源。维护者发布检查见 PUBLISHING.md。
 
 ## 方式二：Git 仓库
 
@@ -24,7 +26,7 @@ dsh-codex-ui@1.2.0
 https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.0
 ```
 
-也接受 `github:chadqian2012-sudo/dsh-codex-ui#v1.2.0`。仓库根目录直接包含 package.json 和 lib 产物，不需要 prepare/build 脚本。首次发布前需先建立仓库并推送此 tag。
+也接受 `github:chadqian2012-sudo/dsh-codex-ui#v1.2.0`。仓库根目录直接包含 package.json 和 lib 产物，不需要 prepare/build 脚本。
 
 ## 方式三：本地目录
 
@@ -49,6 +51,8 @@ dsh plugin --profile web add "D:/path/to/dsh-codex-ui"
 ```
 
 Desktop 的 `desktop` 是保留 profile，应优先使用桌面版插件页；不要假设普通 npm CLI 可以修改保留 profile。
+
+本地 CLI 来源可使用本地目录路径。
 
 ## 本地离线安装器与回滚
 

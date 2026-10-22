@@ -1,7 +1,7 @@
 {
   "name": "dsh-codex-ui",
   "version": "1.2.0",
-  "description": "DeepSeek Harness 的 Codex 风格模型与推理等级弹窗，四档滑块及连续变速星尘 / Codex-style DSH model and effort menus",
+  "description": "DeepSeek Harness 的 Codex 风格模型弹窗，七档界面映射原生四档及可交互星尘 / Codex-style DSH model and effort menus",
   "license": "MIT",
   "author": "chadqian2012-sudo",
   "repository": {
@@ -50,6 +50,10 @@
     "preview/screenshots/v1.2.0/light-high.png",
     "preview/screenshots/v1.2.0/light-max.png",
     "preview/screenshots/v1.2.0/dark-max.png",
+    "preview/screenshots/v1.2.0/light-high-boost.png",
+    "preview/screenshots/v1.2.0/dark-high-boost.png",
+    "preview/screenshots/v1.2.0/light-ultra-boost.png",
+    "preview/screenshots/v1.2.0/dark-ultra-boost.png",
     "preview/screenshots/v1.2.0/light-models.png",
     "preview/screenshots/v1.2.0/dark-models.png",
     "README.md"
@@ -63,6 +67,7 @@
     "test:install": "powershell -NoProfile -ExecutionPolicy Bypass -File test/install.test.ps1",
     "test:distribution": "node --test test/distribution.test.mjs",
     "test:publish": "powershell -NoProfile -ExecutionPolicy Bypass -File test/publish.test.ps1",
+    "test:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File test/zip.test.ps1",
     "pack": "powershell -NoProfile -ExecutionPolicy Bypass -File ./pack-dist.ps1",
     "prepublishOnly": "npm test && npm run test:distribution"
   },

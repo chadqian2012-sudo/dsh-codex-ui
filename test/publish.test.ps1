@@ -43,10 +43,10 @@ exit /b 0
 echo npm %* ^| %CD%>>"%MOCK_LOG%"
 if /i "%1"=="pack" goto do_pack
 if /i "%1"=="publish" goto do_publish
-if /i "%1"=="whoami" (echo test-user& exit /b 0)
+if /i "%1"=="whoami" (echo %MOCK_NPM_LOGIN%& exit /b 0)
 if /i "%1"=="test" exit /b 0
 if /i "%1 %2 %3"=="run test:distribution" exit /b 0
-if /i "%1 %2 %3"=="view dsh-codex-ui maintainers" (if /i "%MOCK_PACKAGE%"=="absent" (echo npm error code E404 1>&2& exit /b 1) else (if /i "%MOCK_MAINTAINERS%"=="other" (echo [{"name":"test-user"},{"name":"other-user"}]& exit /b 0) else (echo [{"name":"test-user"}]& exit /b 0)))
+if /i "%1 %2 %3"=="view dsh-codex-ui maintainers" (if /i "%MOCK_PACKAGE%"=="absent" (echo npm error code E404 1>&2& exit /b 1) else (if /i "%MOCK_MAINTAINERS%"=="other" (echo [{"name":"chad_0314"},{"name":"other-user"}]& exit /b 0) else (echo [{"name":"chad_0314"}]& exit /b 0)))
 if /i "%1 %2 %3"=="view dsh-codex-ui@1.2.0 version" (if /i "%MOCK_VERSION%"=="exists" (echo "1.2.0"& exit /b 0) else (echo npm error code E404 1>&2& exit /b 1))
 exit /b 0
 :do_pack
@@ -62,11 +62,11 @@ exit /b 0
   return [pscustomobject]@{Bin=$b;Root=$r;Log=(Join-Path $d 'calls.log');Dist=(Join-Path $r 'dist')}
 }
 function Run($f,[string]$scenario='success',[switch]$whatif){
-  $names=@('PATH','MOCK_LOG','MOCK_DIST','MOCK_REPO','MOCK_REMOTE_TAG','MOCK_DIRTY','MOCK_PACKAGE','MOCK_MAINTAINERS','MOCK_VERSION','MOCK_PUBLISH_FAIL');$old=@{}
+  $names=@('PATH','MOCK_LOG','MOCK_DIST','MOCK_REPO','MOCK_REMOTE_TAG','MOCK_DIRTY','MOCK_PACKAGE','MOCK_MAINTAINERS','MOCK_VERSION','MOCK_PUBLISH_FAIL','MOCK_NPM_LOGIN');$old=@{}
   foreach($n in $names){$old[$n]=[Environment]::GetEnvironmentVariable($n)}
   try{
-    $env:PATH=$f.Bin+';'+$old.PATH;$env:MOCK_LOG=$f.Log;$env:MOCK_DIST=$f.Dist;$env:MOCK_REPO='absent';$env:MOCK_REMOTE_TAG='0';$env:MOCK_DIRTY='0';$env:MOCK_PACKAGE='absent';$env:MOCK_MAINTAINERS='self';$env:MOCK_VERSION='absent';$env:MOCK_PUBLISH_FAIL='0'
-    switch($scenario){repoerror{$env:MOCK_REPO='error'};dirty{$env:MOCK_DIRTY='1'};existing{$env:MOCK_REPO='exists'};tag{$env:MOCK_REPO='exists';$env:MOCK_REMOTE_TAG='1'};version{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_VERSION='exists'};maintainer{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_MAINTAINERS='other'};publishfail{$env:MOCK_PUBLISH_FAIL='1'}}
+    $env:PATH=$f.Bin+';'+$old.PATH;$env:MOCK_LOG=$f.Log;$env:MOCK_DIST=$f.Dist;$env:MOCK_REPO='absent';$env:MOCK_REMOTE_TAG='0';$env:MOCK_DIRTY='0';$env:MOCK_PACKAGE='absent';$env:MOCK_MAINTAINERS='self';$env:MOCK_VERSION='absent';$env:MOCK_PUBLISH_FAIL='0';$env:MOCK_NPM_LOGIN='chad_0314'
+    switch($scenario){repoerror{$env:MOCK_REPO='error'};dirty{$env:MOCK_DIRTY='1'};existing{$env:MOCK_REPO='exists'};tag{$env:MOCK_REPO='exists';$env:MOCK_REMOTE_TAG='1'};version{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_VERSION='exists'};maintainer{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_MAINTAINERS='other'};wrongnpm{$env:MOCK_NPM_LOGIN='wrong-account'};publishfail{$env:MOCK_PUBLISH_FAIL='1'}}
     $a=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $f.Root 'publish-release.ps1'));if($whatif){$a+= '-WhatIf'}
     $savedEap=$ErrorActionPreference;$ErrorActionPreference='Continue'
     $script:Output=& (Join-Path $PSHOME 'powershell.exe') @a 2>&1|Out-String;$script:Exit=$LASTEXITCODE
@@ -92,6 +92,8 @@ try{
   Assert ($script:Exit -ne 0 -and $c -notmatch 'repo create') 'non-404 repo error does not create repository'
   $f=Fixture 'dirty';Run $f 'dirty';$c=Calls $f
   Assert ($script:Exit -ne 0 -and $script:Output -match '工作树' -and $c -notmatch 'gh ') 'dirty checkout stops before external commands'
+  $f=Fixture 'wrongnpm';Run $f 'wrongnpm';$c=Calls $f
+  Assert ($script:Exit -ne 0 -and $script:Output -match 'npm 账号不是 chad_0314' -and $c -notmatch 'npm test|repo create|push origin|release create|publish ') 'wrong npm account stops before tests and external writes'
   $f=Fixture 'tag';Run $f 'tag';$c=Calls $f
   Assert ($script:Exit -ne 0 -and $script:Output -match '远端 tag' -and $c -notmatch 'repo create|push origin') 'existing remote tag stops publish'
   $f=Fixture 'version';Run $f 'version';$c=Calls $f

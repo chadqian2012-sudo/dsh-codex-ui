@@ -28,6 +28,9 @@ after(async () => {
 
 async function pageWithPlugin(options = {}) {
   const context = await browser.newContext({ viewport: options.viewport ?? { width: 1280, height: 900 }, deviceScaleFactor: options.scale ?? 1, hasTouch: options.hasTouch ?? false, isMobile: options.hasTouch ?? false });
+  if (options.oldSettings) {
+    await context.addInitScript(() => localStorage.setItem('dsh-codex-effort-slider.settings', JSON.stringify({ v: 1, motion: 'fast', reachedTicks: 'dim', legacyGlow: true })));
+  }
   const page = await context.newPage();
   page.setDefaultTimeout(5000);
   page.on('pageerror', (error) => console.error('[fixture pageerror]', error.message));
@@ -46,7 +49,7 @@ test('real React DOM integration follows root/model selection, keeps effort pick
     await page.waitForSelector('[data-ces-menu="root"]');
     assert.equal(await page.locator('[data-ces-menu="root"] [role="menuitem"]').count(), 2);
     assert.equal(await page.locator('[data-ces-part="track"]').count(), 1);
-    assert.equal(await page.locator('[data-ces-menu="root"]').evaluate((el) => getComputedStyle(el).borderRadius), '24px');
+    assert.equal(await page.locator('[data-ces-menu="root"]').evaluate((el) => getComputedStyle(el).borderRadius), '22px');
 
     await page.getByRole('menuitem', { name: /模型/ }).click();
     await page.waitForSelector('[data-ces-menu="models"]');
@@ -80,38 +83,287 @@ test('real React DOM integration follows root/model selection, keeps effort pick
   }
 });
 
-test('four effort levels respond to keyboard, pointer touch, delayed reports, reset, and session state stays scoped', async () => {
-  const { context, page } = await pageWithPlugin({ viewport: { width: 390, height: 844 }, scale: 1.25, hasTouch: true });
+test('boost notice fades the native model row, restarts on rapid clicks, and cancels cleanly on close', async () => {
+  const { context, page } = await pageWithPlugin();
   try {
-    await page.getByRole('button', { name: 'Select model' }).click();
+    const trigger = page.getByRole('button', { name: 'Select model' });
+    await trigger.click();
+    const row = page.locator('[data-ces-menu="root"] [data-ces-row="model"]');
+    const nativeParts = row.locator(':scope > [data-ces-native]');
+    const boost = page.locator('[data-ces-part="boost"]');
+    const notice = page.locator('[data-ces-part="model-notice"]');
+    assert.equal(await notice.textContent(), '使用额度消耗更快');
+    assert.equal(await boost.getAttribute('title'), null, 'boost has no hover tooltip');
+    assert.equal(await boost.getAttribute('aria-label'), '开启快速动效');
+    assert.equal(await nativeParts.first().evaluate((el) => getComputedStyle(el).opacity), '1');
+    assert.match(await nativeParts.first().evaluate((el) => getComputedStyle(el).transitionDuration), /0\.18s/);
+
+    await boost.click();
+    await page.waitForTimeout(60);
+    await boost.click();
+    assert.equal(await boost.getAttribute('aria-label'), '开启快速动效');
+    assert.equal(await notice.getAttribute('data-ces-notice'), 'idle', 'turning boost off immediately cancels the hint');
+    await page.waitForTimeout(60);
+    await boost.click();
+    const secondEnableAt = await page.evaluate(() => performance.now());
+    await page.waitForTimeout(100);
+    assert.notEqual(await notice.getAttribute('data-ces-notice'), 'show-hint', 'off/on cancels the earlier timer and restarts the 180ms delay');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="model-notice"]')?.getAttribute('data-ces-notice') === 'show-hint');
+    const shownAt = await page.evaluate(() => performance.now());
+    assert.ok(shownAt - secondEnableAt >= 145, 'hint appears after the restarted enable delay');
+    await page.waitForFunction(() => {
+      const part = document.querySelector('[data-ces-part="model-notice"]');
+      return part && getComputedStyle(part).opacity === '1';
+    });
+    await page.waitForFunction(() => {
+      const parts = document.querySelectorAll('[data-ces-menu="root"] [data-ces-row="model"] > [data-ces-native]');
+      return parts.length > 0 && [...parts].every((el) => getComputedStyle(el).opacity === '0');
+    });
+    assert.match(await notice.evaluate((el) => getComputedStyle(el).transitionDuration), /0\.18s/);
+
+    // The overlay cannot intercept the host's actual model-row click.
+    await row.click();
+    await page.waitForSelector('[data-ces-menu="models"]');
+    assert.equal(await page.locator('[data-ces-part="model-notice-host"]').count(), 0, 'switching to native models pane detaches the notice host');
+    await page.getByRole('menuitemradio').first().focus();
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-ces-menu="root"]');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="model-notice"]')?.getAttribute('data-ces-notice') === 'idle');
+
+    // Disabling during another notice sequence cancels it and restores the native model row.
+    await boost.click();
+    assert.equal(await boost.getAttribute('aria-label'), '开启快速动效');
+    assert.equal(await notice.getAttribute('data-ces-notice'), 'idle');
+    await boost.click();
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="model-notice"]')?.getAttribute('data-ces-notice') === 'show-hint');
+    await boost.click();
+    assert.equal(await boost.getAttribute('aria-label'), '开启快速动效');
+    assert.equal(await notice.getAttribute('data-ces-notice'), 'idle');
+    await page.waitForFunction(() => {
+      const parts = document.querySelectorAll('[data-ces-menu="root"] [data-ces-row="model"] > [data-ces-native]');
+      return parts.length > 0 && [...parts].every((el) => getComputedStyle(el).opacity === '1');
+    });
+
+    // Start another sequence, then close while its hint is visible. Reopening must not replay an old timer.
+    await boost.click();
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="model-notice"]')?.getAttribute('data-ces-notice') === 'show-hint');
+    await trigger.click();
+    await page.waitForFunction(() => !document.querySelector('[data-ces-menu]'));
+    assert.equal(await page.locator('[data-ces-part="host"], [data-ces-part="header-host"], [data-ces-part="model-notice-host"]').count(), 0, 'closing removes all three injected UI containers');
+
+    await trigger.click();
+    await page.waitForSelector('[data-ces-menu="root"]');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="model-notice"]')?.getAttribute('data-ces-notice') === 'idle');
+    await page.waitForTimeout(1650);
+    assert.equal(await notice.getAttribute('data-ces-notice'), 'idle', 'canceled timers do not change the reopened notice state');
+    assert.equal(await page.locator('[data-ces-part="host"], [data-ces-part="header-host"], [data-ces-part="model-notice-host"]').count(), 3, 'reopened menu owns one fresh set of containers');
+  } finally {
+    await context.close();
+  }
+});
+
+test('seven display levels map to native IDs, retain aliases, scope sessions, and keep boost visual-only', async () => {
+  const { context, page } = await pageWithPlugin({ viewport: { width: 390, height: 844 }, scale: 1.25, hasTouch: true, oldSettings: true });
+  try {
+    const firstComposer = page.locator('[data-fixture-session="session-1"]');
+    const trigger = firstComposer.getByRole('button', { name: 'Select model' });
+    await trigger.click();
     const slider = page.locator('[data-ces-part="track"]');
     await slider.focus();
-    for (const [key, value] of [['Home', 'Off'], ['ArrowRight', 'Low'], ['ArrowRight', 'High'], ['End', 'Max']]) {
-      await page.keyboard.press(key);
-      await page.waitForFunction((v) => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === v, value);
+    assert.equal(await slider.getAttribute('aria-valuemax'), '6');
+    assert.equal(await page.locator('[data-ces-part="tick"]').count(), 7);
+    assert.equal(await slider.getAttribute('aria-valuetext'), 'High (high)');
+    assert.equal(await page.locator('[data-ces-part="level"]').getAttribute('title'), 'High (high)');
+    assert.deepEqual(await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('dsh-codex-effort-slider.settings'));
+      return [s.v, s.motion, s.reachedTicks];
+    }), [3, 'fast', 'dim'], 'legacy preferences should migrate while valid settings survive');
+
+    // Simulate DSH's global superellipse and a host radius override; the knob stays round.
+    await page.addStyleTag({ content: '@supports(corner-shape:superellipse(1.5)){:root{--dsw-corner-shape:superellipse(1.5)}*,:before,:after{corner-shape:var(--dsw-corner-shape)}}' });
+    const shape = await page.locator('[data-ces-part="knob"]').evaluate((el) => {
+      const css = getComputedStyle(el), box = el.getBoundingClientRect();
+      const track = getComputedStyle(el.parentElement);
+      return { width: box.width, height: box.height, radius: css.borderRadius, cornerShape: css.cornerShape, background: css.backgroundColor, trackCornerShape: track.cornerShape };
+    });
+    assert.deepEqual(shape, { width: 36, height: 36, radius: '50%', cornerShape: 'superellipse(1)', background: 'rgb(255, 255, 255)', trackCornerShape: 'superellipse(1)' });
+
+    const root = page.locator('.ces-inline[data-ces-part="root"]');
+    const boost = page.locator('[data-ces-part="boost"]');
+    const lightning = await boost.evaluate((el) => {
+      const css = getComputedStyle(el), icon = getComputedStyle(el.querySelector('svg'));
+      return { background: css.backgroundColor, radius: css.borderRadius, cornerShape: css.cornerShape, fill: icon.fill, stroke: icon.stroke };
+    });
+    assert.equal(lightning.background, 'rgba(127, 127, 127, 0.08)');
+    assert.equal(lightning.radius, '10px');
+    assert.equal(lightning.cornerShape, 'superellipse(1)');
+    assert.equal(lightning.fill, 'rgb(149, 149, 152)');
+    assert.equal(lightning.stroke, 'none');
+    const selectionsBeforeBoost = await page.evaluate(() => window.__fixture.selections.length);
+    assert.equal(await boost.getAttribute('aria-pressed'), 'false');
+    await boost.focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="boost"]')?.getAttribute('aria-pressed') === 'true');
+    assert.equal(await root.getAttribute('data-boost'), '1');
+    assert.equal(await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--ces-boost').trim()), '1.8');
+    assert.equal(await page.evaluate(() => window.__fixture.selections.length), selectionsBeforeBoost, 'boost must not submit a native effort selection');
+    assert.equal(await page.locator('[data-ces-menu="root"]').count(), 1, 'boost activation must not trigger the native row');
+    await boost.click();
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="boost"]')?.getAttribute('aria-pressed') === 'false');
+    await slider.focus();
+
+    const expected = [
+      { key: 'Home', label: 'Off', id: 'off', request: true },
+      { key: 'ArrowRight', label: 'Low', id: 'low', request: true },
+      { key: 'ArrowRight', label: 'Medium', id: 'low', request: false },
+      { key: 'ArrowRight', label: 'High', id: 'high', request: true },
+      { key: 'ArrowRight', label: 'XHigh', id: 'high', request: false },
+      { key: 'ArrowRight', label: 'Max', id: 'max', request: true },
+      { key: 'ArrowRight', label: 'Ultra', id: 'max', request: false },
+    ];
+    let requested = 0;
+    for (let index = 0; index < expected.length; index += 1) {
+      const item = expected[index];
+      await slider.focus();
+      await page.keyboard.press(item.key);
+      await page.waitForFunction(({ label, id }) => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === `${label} (${id})`, { label: item.label, id: item.id });
+      if (item.request) {
+        requested += 1;
+        await page.waitForFunction((count) => window.__fixture.selections.length === count, requested);
+      } else {
+        await page.waitForTimeout(150);
+        assert.equal(await page.evaluate(() => window.__fixture.selections.length), requested, `${item.label} is an alias of native ${item.id}`);
+      }
+      assert.equal(await slider.getAttribute('aria-valuenow'), String(index));
+      assert.equal(await page.locator('[data-ces-part="level"]').getAttribute('title'), `${item.label} (${item.id})`);
+      if (item.label === 'Ultra') {
+        assert.equal(await root.getAttribute('data-energy'), '1', 'Ultra alone enables purple energy');
+        assert.equal(await page.locator('[data-ces-part="fill"]').getAttribute('data-fill'), 'energy');
+        assert.equal(await page.locator('[data-ces-part="level"]').evaluate((el) => getComputedStyle(el).color), 'rgb(139, 92, 246)');
+        assert.ok(await page.locator('[data-ces-part="star"]').count() > 0, 'Ultra renders purple stars');
+      } else {
+        assert.equal(await root.getAttribute('data-energy'), '0', `${item.label} keeps purple energy off`);
+        assert.equal(await page.locator('[data-ces-part="fill"]').getAttribute('data-fill'), item.label === 'Off' ? 'gray' : 'blue', `${item.label} fill remains gray/blue`);
+        const expectedColor = item.label === 'Off' ? 'rgb(149, 149, 152)' : 'rgb(77, 127, 247)';
+        assert.equal(await page.locator('[data-ces-part="level"]').evaluate((el) => getComputedStyle(el).color), expectedColor, `${item.label} uses its gray/blue text color`);
+        assert.equal(await page.locator('[data-ces-part="star"]').count(), 0, `${item.label} has no purple stars`);
+      }
+      if (item.label === 'Off') {
+        const count = await page.evaluate(() => window.__fixture.selections.length);
+        await boost.focus();
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('[data-ces-part="boost"]')?.getAttribute('aria-pressed') === 'true');
+        assert.equal(await root.getAttribute('data-energy'), '0');
+        assert.equal(await root.getAttribute('data-off'), '1');
+        assert.equal(await page.locator('[data-ces-part="fill"]').getAttribute('data-fill'), 'gray');
+        assert.equal(await page.locator('[data-ces-part="dust"]').count(), 0, 'Off remains static when visual boost is enabled');
+        assert.equal(await page.locator('[data-ces-part="star"]').count(), 0);
+        assert.equal(await page.evaluate(() => window.__fixture.selections.length), count);
+        await boost.click();
+        await page.waitForFunction(() => document.querySelector('[data-ces-part="boost"]')?.getAttribute('aria-pressed') === 'false');
+      }
     }
+    assert.deepEqual(await page.evaluate(() => window.__fixture.selections.map((s) => s.reasoningEffort)), ['off', 'low', 'high', 'max']);
+    assert.ok((await page.evaluate(() => window.__fixture.reports.map((r) => r.effort).filter(Boolean))).every((id) => ['off', 'low', 'high', 'max'].includes(id)), 'store reports must remain in the native four-ID domain');
+
+    // A same-native-ID report and root menu reopen retain the selected Ultra alias.
+    await page.evaluate(() => window.__fixture.report('max'));
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Ultra (max)');
+    await slider.focus();
+    const backwardSelectionStart = await page.evaluate(() => window.__fixture.selections.length);
+    for (const label of ['Max', 'XHigh', 'High', 'Medium']) {
+      await page.keyboard.press('ArrowLeft');
+      const id = label === 'Ultra' || label === 'Max' ? 'max' : label === 'XHigh' || label === 'High' ? 'high' : 'low';
+      await page.waitForFunction((value) => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === value, `${label} (${id})`);
+    }
+    await page.waitForFunction((count) => window.__fixture.selections.length === count, backwardSelectionStart + 2);
+    await page.evaluate(() => window.__fixture.report('low'));
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Medium (low)');
+    await trigger.click();
+    await page.waitForFunction(() => !document.querySelector('[data-ces-menu="root"]'));
+    await trigger.click();
+    await page.waitForSelector('[data-ces-menu="root"]');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Medium (low)');
+
+    // Low gets only slow gray dust; its fill remains blue and the native ID stays low.
+    const boostCountBeforeLow = await page.evaluate(() => window.__fixture.selections.length);
+    await boost.focus();
+    await page.keyboard.press('Space');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="boost"]')?.getAttribute('aria-pressed') === 'true');
+    assert.equal(await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--ces-boost').trim()), '1.8');
+    assert.equal(await page.locator('[data-ces-part="dust"]').count(), 7);
+    const dustTransformBefore = await page.locator('[data-ces-part="dust"]').first().evaluate((el) => el.style.transform);
+    await page.waitForTimeout(250);
+    const dustTransformAfter = await page.locator('[data-ces-part="dust"]').first().evaluate((el) => el.style.transform);
+    assert.notEqual(dustTransformAfter, dustTransformBefore, 'boosted low dust must move over time');
+    assert.equal(await page.locator('[data-ces-part="fill"]').getAttribute('data-fill'), 'blue');
+    assert.equal(await root.getAttribute('data-energy'), '0');
+    assert.equal(await page.evaluate(() => window.__fixture.selections.length), boostCountBeforeLow);
+    await boost.click();
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="boost"]')?.getAttribute('aria-pressed') === 'false');
+    assert.equal(await page.locator('[data-ces-part="dust"]').count(), 0, 'turning boost off removes low dust immediately');
+    assert.equal(await page.locator('[data-ces-part="fill"]').getAttribute('data-fill'), 'blue');
+    assert.equal(await page.evaluate(() => window.__fixture.selections.length), boostCountBeforeLow);
+
+    // The seven tick centers are evenly ordered across the track and touch input reaches the first alias.
     const box = await slider.boundingBox();
+    const points = await page.locator('[data-ces-part="tick"]').evaluateAll((nodes) => nodes.map((el) => { const r = el.getBoundingClientRect(); return r.x + r.width / 2; }));
+    assert.equal(points.length, 7);
+    assert.ok(points.every((x, index) => index === 0 || x > points[index - 1]));
     const touch = await context.newCDPSession(page);
     const y = box.y + box.height / 2;
-    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: box.x + 16, y }] });
-    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: box.x + box.width - 16, y }] });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: points[6], y }] });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: points[0], y }] });
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Off (off)');
     assert.equal(await page.evaluate(() => window.__fixture.messages), 0);
 
     const reset = page.locator('[data-ces-part="reset"]');
-    assert.equal(await reset.count(), 1);
-    {
-      await reset.focus();
-      await page.keyboard.press('Enter');
-      await page.waitForFunction(() => window.__fixture.selections.some((s) => s.provider && s.model && !Object.hasOwn(s, 'reasoningEffort')));
-      await page.waitForFunction(() => window.__fixture.effort === 'high');
-    }
-    const args = await page.evaluate(() => window.__fixture.selections);
-    assert.ok(args.every((selection) => selection.provider === 'deepseek' && selection.model));
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="root"]')?.getAttribute('data-busy') === '0');
+    await reset.focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.__fixture.selections.some((s) => s.provider && s.model && !Object.hasOwn(s, 'reasoningEffort')));
+    await page.waitForFunction(() => window.__fixture.effort === 'high');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'High (high)');
     assert.equal(await page.evaluate(() => window.__fixture.messages), 0);
+
+    // A reasoner model's native max default resets to its canonical Max alias.
+    await trigger.click();
+    await page.waitForFunction(() => !document.querySelector('[data-ces-menu="root"]'));
+    await trigger.click();
+    await page.waitForSelector('[data-ces-menu="root"]');
+    await page.getByRole('menuitem', { name: /模型/ }).click();
+    await page.locator('[role="menuitemradio"] [data-model-id="deepseek-reasoner"]').click();
+    await page.waitForFunction(() => window.__fixture.current.model === 'deepseek-reasoner' && window.__fixture.effort === 'max');
+    await trigger.click();
+    await page.waitForSelector('[data-ces-menu="root"]');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Max (max)');
     await slider.focus();
-    await page.keyboard.press('Escape');
-    await page.waitForFunction(() => !document.querySelector('[data-ces-menu]'));
+    await page.keyboard.press('Home');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Off (off)');
+    await page.locator('[data-ces-part="reset"]').focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.__fixture.selections.some((s) => s.model === 'deepseek-reasoner' && !Object.hasOwn(s, 'reasoningEffort')));
+    await page.waitForFunction(() => window.__fixture.current.model === 'deepseek-reasoner' && window.__fixture.effort === 'max');
+    await page.waitForFunction(() => document.querySelector('[data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Max (max)');
+
+    // Two composers in the same page have independent directories, aliases, and selections.
+    await trigger.click();
+    await page.waitForFunction(() => !document.querySelector('[data-ces-menu="root"]'));
+    await page.evaluate(() => window.__mountSecondSession());
+    await page.waitForFunction(() => document.querySelectorAll('[data-ces-part="anchor"]').length === 2);
+    const secondComposer = page.locator('[data-fixture-session="session-2"]');
+    await secondComposer.getByRole('button', { name: 'Select model' }).click();
+    const secondTrack = page.locator('#official-model-menu-session-2 [data-ces-part="track"]');
+    await secondTrack.focus();
+    await page.keyboard.press('End');
+    await page.waitForFunction(() => window.__fixtureSessions.get('session-2').effort === 'max');
+    await page.waitForFunction(() => document.querySelector('#official-model-menu-session-2 [data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Ultra (max)');
+    await secondComposer.getByRole('button', { name: 'Select model' }).click();
+    await trigger.click();
+    await page.waitForSelector('#official-model-menu-session-1 [data-ces-part="track"]');
+    assert.equal(await slider.getAttribute('aria-valuetext'), 'Max (max)', 'session-2 must not change session-1 alias');
+    assert.deepEqual(await page.evaluate(() => window.__fixtureSessions.get('session-2').selections.map((s) => s.reasoningEffort)), ['max']);
   } finally {
     await context.close();
   }
