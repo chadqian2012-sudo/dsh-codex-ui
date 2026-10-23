@@ -369,6 +369,75 @@ test('seven display levels map to native IDs, retain aliases, scope sessions, an
   }
 });
 
+test('native pointer capture loss settles once, foreign pointers cannot take over, and Escape discards the drag', async () => {
+  const { context, page } = await pageWithPlugin();
+  try {
+    await page.getByRole('button', { name: 'Select model' }).click();
+    const slider = page.locator('[data-ces-part="track"]');
+    await slider.focus();
+    await page.keyboard.press('Home');
+    await page.waitForFunction(() => window.__fixture.effort === 'off');
+    const before = await page.evaluate(() => window.__fixture.selections.length);
+    const box = await slider.boundingBox();
+    const right = box.x + box.width - 18;
+    const left = box.x + 18;
+    const y = box.y + box.height / 2;
+    await slider.evaluate((el) => {
+      el.addEventListener('pointerdown', (event) => { if (event.isTrusted) window.__testPointerId = event.pointerId; });
+      window.__testLostCapture = 0;
+      el.addEventListener('lostpointercapture', () => { window.__testLostCapture += 1; });
+    });
+
+    await page.mouse.move(right, y);
+    await page.mouse.down();
+    await page.mouse.move(right - 1, y);
+    assert.equal(await slider.evaluate((el) => el.hasPointerCapture(window.__testPointerId)), true);
+    await slider.evaluate((el) => {
+      const foreignId = window.__testPointerId + 100;
+      const x = el.getBoundingClientRect().left;
+      for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture']) {
+        el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: foreignId, clientX: x, buttons: 1 }));
+      }
+    });
+    assert.equal(await page.evaluate(() => window.__fixture.selections.length), before, 'foreign pointers cannot end the active drag');
+    // Use the real browser capture API; the next native pointer event dispatches lostpointercapture.
+    await slider.evaluate((el) => el.releasePointerCapture(window.__testPointerId));
+    await page.mouse.move(right, y);
+    await page.waitForFunction(() => window.__fixture.effort === 'max');
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => window.__fixture.selections.length), before + 1, 'capture loss and later pointerup commit once');
+    assert.ok(await page.evaluate(() => window.__testLostCapture >= 2), 'native capture loss followed the injected foreign event');
+    assert.equal(await slider.getAttribute('aria-valuetext'), 'Ultra (max)', 'foreign movement did not replace the intended end position');
+
+    // The current pointer's cancel settles too; a different pointer's cancel does not.
+    await page.mouse.move(left, y);
+    await page.mouse.down();
+    await page.mouse.move(left + 1, y);
+    await slider.evaluate((el) => {
+      el.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: window.__testPointerId + 100 }));
+    });
+    assert.equal(await page.evaluate(() => window.__fixture.selections.length), before + 1);
+    await slider.evaluate((el) => {
+      el.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: window.__testPointerId }));
+    });
+    await page.waitForFunction(() => window.__fixture.effort === 'off');
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => window.__fixture.selections.length), before + 2);
+
+    await page.mouse.move(right, y);
+    await page.mouse.down();
+    await page.mouse.move(right - 1, y);
+    await page.getByRole('button', { name: 'Select model' }).focus();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('[data-ces-menu="root"]'));
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => window.__fixture.selections.length), before + 2, 'Escape and node removal discard the uncommitted drag');
+    assert.equal(await page.evaluate(() => window.__fixture.messages), 0);
+  } finally {
+    await context.close();
+  }
+});
+
 test('capture light and dark native menu layouts at the supported viewport and scale matrix', async () => {
   const out = path.join(ROOT, 'preview', 'screenshots', 'v1.2.0');
   const fs = await import('node:fs/promises');

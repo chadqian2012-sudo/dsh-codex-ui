@@ -1,4 +1,4 @@
-# dsh-codex-ui 1.2.0
+# dsh-codex-ui 1.2.1
 
 DeepSeek Harness 的 Codex 风格模型与推理等级弹窗。独立发行名为 `dsh-codex-ui`，基于 [Microqian2th/dsh-codex-effort-slider](https://github.com/Microqian2th/dsh-codex-effort-slider) 的 `d1bb67b20bc19d44be7d7694ffca92a6f2fcbe9b`（1.1.2）修改。上游版权与 MIT 许可证完整保留，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
@@ -10,11 +10,11 @@ DeepSeek Harness 的 Codex 风格模型与推理等级弹窗。独立发行名�
 
 | 来源 | 输入内容 |
 | --- | --- |
-| npm | `dsh-codex-ui@1.2.0` |
-| Git 仓库 | `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.0` |
+| npm | `dsh-codex-ui@1.2.1` |
+| Git 仓库 | `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.1` |
 | 本地目录 | 本地发行目录 `D:\Codex DSH-Plug-in\release\dsh-codex-ui`，或解压后直接包含 `package.json` 的文件夹绝对路径 |
 
-**1.2.0 已公开发布。** GitHub 仓库、v1.2.0 tag、Release 和 npm 包均可用；隔离 DSH CLI 已从公开 npm 固定版本、公开 Git tag 和本地目录安装并核对 bundle 与入口一致。桌面原生弹窗的 Git URL 安装已完成并核对版本、注册与客户端哈希；用户另行确认使用 npm 包名下载完成，该次桌面操作未单独复核安装来源与文件。详细范围见 [PUBLISHING.md](PUBLISHING.md) 与 [VALIDATION.md](VALIDATION.md)。本地目录来源可直接指向此发布目录。
+**1.2.1 发布准备中。** 此版本修复拖动时的指针身份、捕获丢失结算与取消清理问题。此前 1.2.0 的下载验收范围见 [PUBLISHING.md](PUBLISHING.md) 与 [VALIDATION.md](VALIDATION.md)。
 
 npm 下载源优先选择「npm 官方源」`https://registry.npmjs.org/`；需要时可选择镜像源 `https://registry.npmmirror.com/`，新版本可能尚未同步。Git 和本地目录来源无需配置 npm 包的下载源。本仓库的 `.npmrc` 仅为当前项目指定官方源，不改变全局配置。
 
@@ -60,6 +60,6 @@ npm run pack
 
 ## English
 
-Version 1.2.0 is publicly available on GitHub and npm. Isolated DSH CLI installs from the public npm version, fixed Git tag, and local directory passed package and bundle checks. The native Desktop Git URL install passed version, registration and client hash checks. The user separately confirmed downloading by npm package name; that Desktop operation's installed source and files were not independently checked. See [PUBLISHING.md](PUBLISHING.md) and [VALIDATION.md](VALIDATION.md) for the verification scope.
+**Version 1.2.1 is being prepared for release.** It fixes pointer identity, lost capture settlement, and cancellation cleanup during slider drags. See [PUBLISHING.md](PUBLISHING.md) and [VALIDATION.md](VALIDATION.md) for the 1.2.0 verification scope.
 
 Codex-style model and effort menus for DeepSeek Harness, distributed independently as `dsh-codex-ui`. The seven display tiers map to the four actual DeepSeek effort IDs: Off (`off`), Low (`low`), Medium (`low`), High (`high`), XHigh (`high`), Max (`max`) and Ultra (`max`); display labels do not claim quality equivalence. The interface is scaled to 90% of its original size, with an approximately 342×130px card, 18px tier heading, 16px model name, 20px icons, a 32px track and a 36px circular knob. Explicit rounded corners on the track layers and knob override DSH's global `corner-shape: superellipse(1.5)`. Off stays gray; Low through Max stay blue. During the final sixth of slider travel from Max to Ultra, the purple gradient and stardust fade in with smoothstep; they fade out smoothly on retreat. Ultra particles traverse the track in about 3 seconds, or about 1.7 seconds with the visual-only boost enabled, preserving the 1.8x speed ratio and phase continuity. Gray dust in the blue region keeps its previous speed. Enabling the lightning fades the model name out, briefly shows the requested Chinese notice, then restores the native model entry; disabling it cancels that notice. The lightning has no hover tooltip. The notice does not change actual requests or quota behavior. The lightning control uses a solid SVG on a light-gray rounded base. Remove the upstream `dsh-codex-effort-slider` first. Install from npm, the tagged Git repository, or an absolute local package directory after confirming the chosen source is available. The package ships prebuilt JavaScript with no runtime dependencies or install scripts. Original MIT copyright and attribution are retained.

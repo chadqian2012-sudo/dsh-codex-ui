@@ -105,8 +105,8 @@ async function pressAndSettle(ctx, clientX) {
 }
 
 /** 松手并把吸附动画跑到收敛。 */
-async function releaseAndSettle(ctx) {
-  track(ctx.react).fire("onPointerUp", {});
+async function releaseAndSettle(ctx, pointerId = 1) {
+  track(ctx.react).fire("onPointerUp", { pointerId });
   await runFrames(ctx);
   await settle();
 }
@@ -471,7 +471,7 @@ section("5b. 重置模型默认档位，并让在途操作按最后意图串行�
   } } });
 
   track(ctx.react).fire("onPointerDown", { clientX: 20 + (300 - 40) / 3, pointerId: 4 });
-  track(ctx.react).fire("onPointerUp", {}); // 先让 low 成为在途提交
+  track(ctx.react).fire("onPointerUp", { pointerId: 4 }); // 先让 low 成为在途提交
   await settle();
   eq(ctx.host.selects.length, 1, "[5b] 拖动松手后第一笔已在途");
   eq(ctx.host.selects[0].reasoningEffort, "low", "[5b] 在途意图是拖动选中的 low");
@@ -880,7 +880,9 @@ section("10. 基础运动与星场数学（Mapped 非 Ultra 档位由 Ultra 专�
   ok(new Set(positions.map((p) => p.toFixed(1))).size > 8, "[10] 初始相位铺开（均匀穿流）");
 
   // ── 拖回 High：映射档位保持蓝色静态
-  await pressAndSettle(ctx10, internals.KNOB_RADIUS + H * (300 - 2 * internals.KNOB_RADIUS));
+  track(react).fire("onPointerMove", { clientX: internals.KNOB_RADIUS + H * (300 - 2 * internals.KNOB_RADIUS), buttons: 1 });
+  await runFrames(ctx10);
+  await settle();
   eq(react.find("root").getAttribute("data-energy"), "0", "[10] 拖到 High：紫色能量关闭");
   eq(react.findAll("particle").length, 0, "[10] 拖到 High：无紫色粒子");
   eq(react.findAll("star").length, 0, "[10] 拖到 High：无星场");
@@ -1873,9 +1875,9 @@ section("50. 松手必须用 ref 读最新档位（窗口安全网不能调用�
   const src = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
 
   ok(/endDragRef\.current = endDrag;/.test(src), "[50] 每次渲染都刷新 endDragRef");
-  ok(/typeof endDragRef\.current === "function"\) endDragRef\.current\(\)/.test(src), "[50] 窗口 pointerup 安全网调用的是最新 endDrag");
+  ok(/typeof endDragRef\.current === "function"\) endDragRef\.current\(event\)/.test(src), "[50] 窗口 pointerup 安全网把原始事件交给最新 endDrag");
 
-  const start = src.indexOf("function endDrag()");
+  const start = src.indexOf("function endDrag(event)");
   const end = src.indexOf("function onTrackPointerDown");
   ok(start > 0 && end > start, "[50] 能定位 endDrag 函数体");
   const body = src.slice(start, end);
@@ -1991,6 +1993,83 @@ section("52. 三组动画参数都必须稳定（不许 bang-bang 自激振荡�
 }
 
 /* ══════════════════════════════════════════════════════════════════════ */
+
+section("53. 指针身份、捕获丢失结算与关闭清理");
+{
+  // 次指针不能接管拖动、改变目标或结束主指针；未知指针同样不能结算。
+  const c = await setup({ host: { effort: "off" } });
+  const start = track(c.react);
+  start.fire("onPointerDown", { clientX: 300, pointerId: 7 });
+  await runFrames(c);
+  track(c.react).fire("onPointerDown", { clientX: 0, pointerId: 8 });
+  track(c.react).fire("onPointerMove", { clientX: 0, pointerId: 8, buttons: 1 });
+  track(c.react).fire("onPointerUp", { pointerId: 8 });
+  track(c.react).fire("onPointerCancel", { pointerId: 8 });
+  track(c.react).fire("onLostPointerCapture", { pointerId: 8 });
+  c.bundle.window.dispatchEvent({ type: "pointerup", pointerId: 8 });
+  c.bundle.window.dispatchEvent({ type: "pointercancel", pointerId: 8 });
+  track(c.react).fire("onPointerUp", { pointerId: undefined });
+  await settle();
+  eq(c.host.selects.length, 0, "[53] 次指针和无身份事件均不提交主指针的拖动");
+  eq(start.capturedPointer, 7, "[53] 次指针不会释放主指针的捕获");
+  track(c.react).fire("onLostPointerCapture", { pointerId: 7 });
+  await runFrames(c);
+  await settle();
+  eq(c.host.selects.length, 1, "[53] 主指针捕获丢失仍结算一次");
+  eq(c.host.selects[0]?.reasoningEffort, "max", "[53] 次指针未能把原先的 max 意图改成 off");
+  eq(start.capturedPointer, null, "[53] 结算后释放实际捕获节点");
+  c.bundle.window.dispatchEvent({ type: "pointerup", pointerId: 7 });
+  track(c.react).fire("onPointerUp", { pointerId: 7 });
+  track(c.react).fire("onLostPointerCapture", { pointerId: 7 });
+  await settle();
+  eq(c.host.selects.length, 1, "[53] 随后的窗口、轨道和捕获丢失结束事件不重复提交");
+  track(c.react).fire("onPointerDown", { clientX: 0, pointerId: 9 });
+  track(c.react).fire("onLostPointerCapture", { pointerId: 7 });
+  await settle();
+  eq(c.host.selects.length, 1, "[53] 上一次指针的迟到事件不能结束新拖动");
+  track(c.react).fire("onPointerUp", { pointerId: 9 });
+  await settle();
+  eq(c.host.selects[1]?.reasoningEffort, "off", "[53] 结算后可由新指针开始下一次拖动");
+  c.react.unmount();
+
+  for (const type of ["pointerup", "pointercancel"]) {
+    const c = await setup({ host: { effort: "off" } });
+    const node = track(c.react);
+    node.setPointerCapture = () => { throw new Error("capture unavailable"); };
+    node.fire("onPointerDown", { clientX: 300, pointerId: 11 });
+    c.bundle.window.dispatchEvent({ type, pointerId: 12 });
+    eq(c.host.selects.length, 0, `[53] ${type} 安全网忽略其他指针`);
+    c.bundle.window.dispatchEvent({ type, pointerId: 11 });
+    await settle();
+    eq(c.host.selects[0]?.reasoningEffort, "max", `[53] 捕获失败时窗口 ${type} 仍结算正确档位`);
+    c.react.unmount();
+    c.bundle.window.dispatchEvent({ type, pointerId: 11 });
+    eq(c.host.selects.length, 1, `[53] 卸载后移除窗口 ${type} 监听器`);
+  }
+
+  for (const action of ["escape", "window-escape", "close", "unmount", "model", "reset"]) {
+    const c = await setup({ host: { effort: "off" } });
+    const node = track(c.react);
+    node.fire("onPointerDown", { clientX: 300, pointerId: 21 });
+    if (action === "escape") track(c.react).fire("onKeyDown", { key: "Escape" });
+    if (action === "window-escape") c.bundle.window.dispatchEvent({ type: "keydown", key: "Escape" });
+    if (action === "close") { c.menu.close(); c.bundle.flushObservers(); }
+    if (action === "unmount") c.react.unmount();
+    if (action === "model") {
+      const snapshot = c.host.store.getSnapshot();
+      c.host.store.set({ ...snapshot, current: { ...snapshot.current, model: "another-model" } });
+    }
+    if (action === "reset") c.react.find("reset").fire("onClick", {});
+    await settle();
+    eq(node.capturedPointer, null, `[53] ${action} 释放拖动捕获`);
+    node.fire("onLostPointerCapture", { pointerId: 21 });
+    c.bundle.window.dispatchEvent({ type: "pointerup", pointerId: 21 });
+    await settle();
+    eq(c.host.selects.length, action === "reset" ? 1 : 0, `[53] ${action} 后的捕获丢失不额外提交被取消的 max`);
+    if (action === "reset") ok(!Object.hasOwn(c.host.selects[0], "reasoningEffort"), "[53] reset 仍由宿主解析默认档位");
+    if (action !== "unmount") c.react.unmount();
+  }
+}
 
 console.log(`\n${failed === 0 ? "全部通过 ✅" : "有失败 ❌"} （${passed} 项通过，${failed} 项失败）`);
 if (failed > 0) {

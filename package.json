@@ -1,6 +1,6 @@
 {
   "name": "dsh-codex-ui",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "DeepSeek Harness 的 Codex 风格模型弹窗，七档界面映射原生四档及可交互星尘 / Codex-style DSH model and effort menus",
   "license": "MIT",
   "author": "chadqian2012-sudo",

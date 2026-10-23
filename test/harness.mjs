@@ -112,7 +112,9 @@ class FakeNode {
   fire(prop, event) {
     const handler = this.handlers[prop];
     if (typeof handler !== "function") return undefined;
-    return handler(Object.assign({ currentTarget: this, target: this, preventDefault() {}, stopPropagation() {} }, event));
+    // 默认模拟鼠标指针；多指用例显式传不同的 pointerId。
+    const pointer = /^on(?:Pointer|LostPointerCapture)/.test(prop) ? { pointerId: 1 } : {};
+    return handler(Object.assign({ currentTarget: this, target: this, preventDefault() {}, stopPropagation() {} }, pointer, event));
   }
 
   /** 触发用 addEventListener 注册的处理器（假 document/window 用）。 */
@@ -730,15 +732,17 @@ export function loadBundle(bundlePath, document, options = {}) {
   MutationObserverStub.prototype.disconnect = function disconnect() { this.targets.length = 0; };
   MutationObserverStub.prototype.trigger = function trigger() { this.callback([]); };
 
+  const windowEvents = new FakeNode("window");
   const window = {
     __ModuleLoader__: {
       load(reg) { registration = reg; },
     },
     innerWidth: 1280,
     innerHeight: 800,
-    addEventListener() {},
-    removeEventListener() {},
-    dispatchEvent() {},
+    // 分发拖动相关的全局事件；设置通知仍由既有测试显式驱动。
+    addEventListener(type, listener) { if (type.startsWith("pointer") || type === "keydown") windowEvents.addEventListener(type, listener); },
+    removeEventListener(type, listener) { if (type.startsWith("pointer") || type === "keydown") windowEvents.removeEventListener(type, listener); },
+    dispatchEvent(event) { if (event.type.startsWith("pointer") || event.type === "keydown") windowEvents.dispatch(event.type, event); },
     Event: function FakeEvent(type) { this.type = type; },
     MutationObserver: MutationObserverStub,
     setInterval: (fn, ms) => setInterval(fn, ms),

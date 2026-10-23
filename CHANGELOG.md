@@ -1,3 +1,10 @@
+# dsh-codex-ui 1.2.1
+
+- 仅允许发起拖动的 `pointerId` 更新和结束拖动；其他指针、迟到事件与重复结束事件不会接管或重复提交。
+- `pointerup`、`pointercancel` 和 `lostpointercapture` 统一结算当前档位，捕获失败时继续使用窗口安全网。
+- Esc（包括焦点不在滑块时）、菜单关闭、重置、模型／会话切换及卸载会释放捕获；取消时清理尚未发出的拖动意图。
+- 防止新拖动首帧生成前，宿主档位同步覆盖刚选定的目标；滑块运动参数保持原样。
+
 # dsh-codex-ui 1.2.0
 
 首个独立发行版，基于 Microqian2th/dsh-codex-effort-slider 1.1.2（d1bb67b20bc19d44be7d7694ffca92a6f2fcbe9b），保留原 MIT 许可证与归属。
