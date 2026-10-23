@@ -46,7 +46,7 @@ if /i "%1"=="publish" goto do_publish
 if /i "%1"=="whoami" (echo %MOCK_NPM_LOGIN%& exit /b 0)
 if /i "%1"=="test" exit /b 0
 if /i "%1 %2 %3"=="run test:distribution" exit /b 0
-if /i "%1 %2 %3"=="view dsh-codex-ui maintainers" (if /i "%MOCK_PACKAGE%"=="absent" (echo npm error code E404 1>&2& exit /b 1) else (if /i "%MOCK_MAINTAINERS%"=="other" (echo [{"name":"chad_0314"},{"name":"other-user"}]& exit /b 0) else (echo [{"name":"chad_0314"}]& exit /b 0)))
+if /i "%1 %2 %3"=="view dsh-codex-ui maintainers" (if /i "%MOCK_PACKAGE%"=="absent" (echo npm error code E404 1>&2& exit /b 1) else (if /i "%MOCK_MAINTAINERS%"=="other" (echo [{"name":"chad_0314"},{"name":"other-user"}]& exit /b 0) else (if /i "%MOCK_MAINTAINERS%"=="display" (echo ["chad_0314 <chadqian2012@gmail.com>"]& exit /b 0) else (echo [{"name":"chad_0314"}]& exit /b 0))))
 if /i "%1 %2 %3"=="view dsh-codex-ui@1.2.0 version" (if /i "%MOCK_VERSION%"=="exists" (echo "1.2.0"& exit /b 0) else (echo npm error code E404 1>&2& exit /b 1))
 exit /b 0
 :do_pack
@@ -66,7 +66,7 @@ function Run($f,[string]$scenario='success',[switch]$whatif){
   foreach($n in $names){$old[$n]=[Environment]::GetEnvironmentVariable($n)}
   try{
     $env:PATH=$f.Bin+';'+$old.PATH;$env:MOCK_LOG=$f.Log;$env:MOCK_DIST=$f.Dist;$env:MOCK_REPO='absent';$env:MOCK_REMOTE_TAG='0';$env:MOCK_DIRTY='0';$env:MOCK_PACKAGE='absent';$env:MOCK_MAINTAINERS='self';$env:MOCK_VERSION='absent';$env:MOCK_PUBLISH_FAIL='0';$env:MOCK_NPM_LOGIN='chad_0314'
-    switch($scenario){repoerror{$env:MOCK_REPO='error'};dirty{$env:MOCK_DIRTY='1'};existing{$env:MOCK_REPO='exists'};tag{$env:MOCK_REPO='exists';$env:MOCK_REMOTE_TAG='1'};version{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_VERSION='exists'};maintainer{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_MAINTAINERS='other'};wrongnpm{$env:MOCK_NPM_LOGIN='wrong-account'};publishfail{$env:MOCK_PUBLISH_FAIL='1'}}
+    switch($scenario){repoerror{$env:MOCK_REPO='error'};dirty{$env:MOCK_DIRTY='1'};existing{$env:MOCK_REPO='exists'};tag{$env:MOCK_REPO='exists';$env:MOCK_REMOTE_TAG='1'};version{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_VERSION='exists'};maintainer{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_MAINTAINERS='other'};displaymaintainer{$env:MOCK_REPO='exists';$env:MOCK_PACKAGE='exists';$env:MOCK_MAINTAINERS='display'};wrongnpm{$env:MOCK_NPM_LOGIN='wrong-account'};publishfail{$env:MOCK_PUBLISH_FAIL='1'}}
     $a=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $f.Root 'publish-release.ps1'));if($whatif){$a+= '-WhatIf'}
     $savedEap=$ErrorActionPreference;$ErrorActionPreference='Continue'
     $script:Output=& (Join-Path $PSHOME 'powershell.exe') @a 2>&1|Out-String;$script:Exit=$LASTEXITCODE
@@ -100,6 +100,8 @@ try{
   Assert ($script:Exit -ne 0 -and $script:Output -match 'npm dsh-codex-ui@1.2.0 已存在' -and $c -notmatch 'push origin|release create|publish ') 'existing npm version stops publish'
   $f=Fixture 'maintainer';Run $f 'maintainer';$c=Calls $f
   Assert ($script:Exit -ne 0 -and $script:Output -match '其他维护者' -and $c -notmatch 'push origin|release create|publish ') 'other npm maintainer cannot be taken over'
+  $f=Fixture 'displaymaintainer';Run $f 'displaymaintainer';$c=Calls $f
+  Assert ($script:Exit -eq 0 -and $script:Output -match '发布完成' -and $c -match 'npm publish') 'npm display-string maintainer format recognizes the current owner'
   $f=Fixture 'publishfail';Run $f 'publishfail';$c=Calls $f
   Assert ($script:Exit -ne 0 -and $script:Output -match '2FA prompt visible' -and $script:Output -notmatch '发布完成') 'publish failure streams prompt without completion claim'
   Write-Host ([Environment]::NewLine+"$script:Passed publish tests passed.")

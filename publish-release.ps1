@@ -138,7 +138,27 @@ if (-not $PackageExists -and -not (Is-NotFound $PackageQuery)) { Stop-Release '�
 if ($PackageExists) {
   try { $Maintainers = @($PackageQuery.Output | ConvertFrom-Json) }
   catch { Stop-Release 'npm 已返回包信息但维护者列表无法解析；拒绝接管。' }
-  $MaintainerNames = @($Maintainers | ForEach-Object { if ($_ -is [string]) { $_ } else { $_.name } } | Where-Object { $_ })
+  # Windows PowerShell 5 wraps top-level JSON arrays of primitive values in a
+  # PSCustomObject with a .value array; PowerShell 7 returns the array directly.
+  $MaintainerEntries = @($Maintainers)
+  if ($MaintainerEntries.Count -eq 1 -and $null -ne $MaintainerEntries[0].value) {
+    $MaintainerEntries = @($MaintainerEntries[0].value)
+  }
+  # npm may serialize maintainers as either objects ({name}) or display strings
+  # such as "chad_0314 <email>". Compare the account name, not the display form.
+  $MaintainerNames = @($MaintainerEntries | ForEach-Object {
+    if ($_ -is [string]) {
+      $name = ([string]$_).Trim()
+      if ($name -match '^([^\s<]+)') { $Matches[1] }
+    } elseif ($_.name) {
+      ([string]$_.name).Trim()
+    }
+  } | Where-Object { $_ })
+  if ($MaintainerNames.Count -eq 0) {
+    # Some npm CLI/PowerShell combinations preserve display names only in the
+    # raw JSON text. Recover the account portion before the email address.
+    $MaintainerNames = @([regex]::Matches($PackageQuery.Output, '"([^"<\s]+)\s*<[^>]+>"') | ForEach-Object { $_.Groups[1].Value })
+  }
   if ($MaintainerNames.Count -eq 0 -or @($MaintainerNames | Where-Object { $_ -cne $NpmLogin }).Count -gt 0 -or @($MaintainerNames | Where-Object { $_ -ceq $NpmLogin }).Count -eq 0) {
     Stop-Release 'npm 包已有其他维护者或无法确认当前账号维护权限；拒绝接管。'
   }
