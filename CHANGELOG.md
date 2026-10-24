@@ -1,5 +1,9 @@
 # Unreleased
 
+- 精修两个 Codex 风格弹窗：15px 模型文字、18px 图标、更轻的边框阴影、圆角列表悬停与明确的键盘焦点；保留滑轨／旋钮尺寸和现有动效参数。
+- 核对 DSH 0.2.1-rc.3 的原生菜单和目录接口；开发 fixture 从安装包读取 CSS Modules 类名，覆盖搜索、空结果与窄屏，避免沿用 rc2 哈希造成视觉测试失真。
+- 将浏览器测试矩阵图移入忽略的临时目录，历史发行截图不再被测试覆盖。
+
 - 保留同模型目录短暂清空期间的七档显示别名；模型或真实能力改变时仍清理旧别名。
 - 为未返回的 effort 提交增加有界恢复，并隔离超时旧请求的迟到回调。
 - RC 阶段移除 `engines.dsh` 预发布版本门槛；已验证版本继续在文档中明确列出。
@@ -7,7 +11,7 @@
 - 在开发用 ASAR 解析器分配内存前验证文件范围、条目大小和完整读取。
 - 同步安装文档到已发布的 1.2.1，并区分本分支尚未发布的修复。
 
-English: preserve display aliases across transient empty metadata; recover from stalled selections without accepting stale callbacks; remove the DSH prerelease semver gate; preserve unrelated profile changes during rollback; validate ASAR bounds before allocation; and distinguish published installation commands from unreleased fixes.
+English: refine Codex-style typography, icon alignment, hover and keyboard-focus states without changing slider motion; verify rc3 native contracts and load its CSS Module classes dynamically for searchable/empty model fixtures; preserve historical screenshots. Preserve display aliases across transient empty metadata; recover from stalled selections without accepting stale callbacks; remove the DSH prerelease semver gate; preserve unrelated profile changes during rollback; validate ASAR bounds before allocation; and distinguish published installation commands from unreleased fixes.
 
 # dsh-codex-ui 1.2.1
 

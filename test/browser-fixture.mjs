@@ -71,6 +71,18 @@ export function readAsarEntry(entryPath, asarPath = ASAR_PATH) {
 export const OFFICIAL_CLIENT_PATH = 'dsh/node_modules/@deepseek-ai/dsh-client-ui-model-selection/lib/client.js';
 export const OFFICIAL_PACKAGE_PATH = 'dsh/node_modules/@deepseek-ai/dsh-client-ui-model-selection/package.json';
 
+// Read CSS Modules exports instead of baking a build-specific hash into the fixture.
+export function readOfficialModelClasses(asarPath = ASAR_PATH) {
+  const source = readAsarEntry(OFFICIAL_CLIENT_PATH, asarPath).toString('utf8');
+  const literal = source.match(/var ModelSelect_module_css_default = (\{[\s\S]*?\n\s*\});/);
+  if (!literal) throw new Error('Could not locate official ModelSelect class exports');
+  const classes = JSON.parse(literal[1]);
+  for (const key of ['root', 'menu', 'groups', 'cell', 'cellValue', 'option', 'modelOption', 'optionCopy', 'modelName', 'check']) {
+    if (typeof classes[key] !== 'string' || !/^[A-Za-z0-9_-]+$/.test(classes[key])) throw new Error(`Invalid official ModelSelect class: ${key}`);
+  }
+  return classes;
+}
+
 export function readOfficialCss(asarPath = ASAR_PATH) {
   const source = readAsarEntry(OFFICIAL_CLIENT_PATH, asarPath).toString('utf8');
   const literal = source.match(/const css = ("(?:\\.|[^"\\])*");/);
@@ -98,6 +110,14 @@ export async function startBrowserFixture() {
   const reactDom = fs.readFileSync(resolveDependency('react-dom', 'umd/react-dom.development.js'));
   const plugin = fs.readFileSync(path.join(ROOT, 'lib/client.js'));
   const nativeCss = Buffer.from(readOfficialCss());
+  const classes = readOfficialModelClasses();
+  const supportsModelSearch = Boolean(classes.search && classes.searchRow) && /role:\s*["']searchbox["']/.test(readAsarEntry(OFFICIAL_CLIENT_PATH).toString('utf8'));
+  const nativeFixtureUi = fixtureUi.replace(/wq12jW_([A-Za-z]+)/g, (_, key) => {
+    // Optional search exports are absent on earlier RC builds. Basic fixtures must still start.
+    if (!supportsModelSearch && ['search', 'searchRow'].includes(key)) return `fixture-${key}`;
+    if (typeof classes[key] !== 'string' || !/^[A-Za-z0-9_-]+$/.test(classes[key])) throw new Error(`Invalid official ModelSelect class: ${key}`);
+    return classes[key];
+  });
   const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -106,7 +126,7 @@ export async function startBrowserFixture() {
       res.end(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/native.css"><style>html,body{margin:0;min-height:100%;font:16px Arial,sans-serif}body{padding:36px;background:#f4f5f7;color:#202124}body[data-theme=dark]{background:#17181b;color:#eee}.fixture{width:min(420px,calc(100vw - 48px));padding:24px;background:#fff;border-radius:18px}body[data-theme=dark] .fixture{background:#242529}.label{margin-bottom:12px}</style></head><body><div class="fixture"><div class="label">Model selection fixture</div><div id="app"></div></div><script src="/react.js"></script><script src="/react-dom.js"></script><script src="/fixture-ui.js"></script><script src="/plugin.js"></script><script>window.__fixtureReady=true</script></body></html>`);
       return;
     }
-    const payloads = { '/react.js': react, '/react-dom.js': reactDom, '/fixture-ui.js': Buffer.from(fixtureUi), '/plugin.js': plugin, '/native.css': nativeCss };
+    const payloads = { '/react.js': react, '/react-dom.js': reactDom, '/fixture-ui.js': Buffer.from(`window.__fixtureSupportsSearch=${JSON.stringify(supportsModelSearch)};\n` + nativeFixtureUi), '/plugin.js': plugin, '/native.css': nativeCss };
     const body = payloads[url.pathname];
     if (!body) { res.writeHead(404).end(); return; }
     res.writeHead(200, { 'content-type': url.pathname === '/native.css' ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8' });
@@ -116,7 +136,7 @@ export async function startBrowserFixture() {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
   });
-  return { server, url: `http://127.0.0.1:${server.address().port}/`, executablePath: resolveBrowser() };
+  return { server, url: `http://127.0.0.1:${server.address().port}/`, executablePath: resolveBrowser(), supportsModelSearch };
 }
 
 export const fixtureUi = String.raw`
@@ -125,11 +145,12 @@ export const fixtureUi = String.raw`
   const h = React.createElement;
   const levels=[{id:'off',name:'Off'},{id:'low',name:'Low'},{id:'high',name:'High'},{id:'max',name:'Max'}];
   const sessions=new Map();
+  const allModelIds=new URL(location.href).searchParams.has('manyModels')?['deepseek-chat','deepseek-reasoner','fixture-model-3','fixture-model-4','fixture-model-5']:['deepseek-chat','deepseek-reasoner'];
   function getSession(id){
     if(sessions.has(id))return sessions.get(id);
     const session={id,opens:0,messages:0,selections:[],current:{provider:'deepseek',model:'deepseek-chat'},effort:'high',pending:null,generation:0,pane:'root',reports:[],directoryLookups:[]};
     const listeners=new Set();
-    function makeSnapshot(){return {current:{...session.current,reasoningEffort:session.effort},value:{...session.current,reasoningEffort:session.effort},status:session.pending?'selecting':'ready',pending:session.pending&&{...session.pending},error:null,groups:[{id:'deepseek',name:'DeepSeek',models:[{id:'deepseek-chat',name:'DeepSeek Chat',reasoning:{efforts:levels,defaultEffort:'high'}},{id:'deepseek-reasoner',name:'DeepSeek Reasoner',reasoning:{efforts:levels,defaultEffort:'max'}}]}]};}
+    function makeSnapshot(){return {current:{...session.current,reasoningEffort:session.effort},value:{...session.current,reasoningEffort:session.effort},status:session.pending?'selecting':'ready',pending:session.pending&&{...session.pending},error:null,groups:[{id:'deepseek',name:'DeepSeek',models:allModelIds.map(id=>({id,name:id,reasoning:{efforts:levels,defaultEffort:id==='deepseek-reasoner'?'max':'high'}}))}]};}
     let cachedSnapshot=makeSnapshot();
     const publish=()=>{cachedSnapshot=makeSnapshot();session.reports.push({effort:session.effort,pending:session.pending&&{...session.pending}});for(const fn of listeners)fn();};
     session.report=(effort)=>{session.effort=effort;publish();};
@@ -144,8 +165,12 @@ export const fixtureUi = String.raw`
   function OfficialModelSelect({sessionId}){
     const state=getSession(sessionId);
     const directory=state.directory;
-    const menuId='official-model-menu-'+sessionId;
+    const id='official-model-'+sessionId,menuId=id+'-menu';
     const [open,setOpen]=React.useState(false),[pane,setPane]=React.useState('root');
+    const [query,setQuery]=React.useState('');
+    const showSearch=window.__fixtureSupportsSearch&&allModelIds.length>4;
+    const visibleModels=allModelIds.filter(model=>modelName(model).toLowerCase().includes(query.toLowerCase()));
+    const choose=(model)=>{directory.select({provider:'deepseek',model});setOpen(false);setPane('root');setQuery('');};
     const [menuPos,setMenuPos]=React.useState(null), triggerRef=React.useRef(null), menuRef=React.useRef(null);
     state.pane=pane;
     const label=(text)=>h('span',null,text);
@@ -162,13 +187,15 @@ export const fixtureUi = String.raw`
       h('button',{key:'models',type:'button',role:'menuitem',className:'wq12jW_cell',onClick:()=>setPane('model')},h('span',{className:'wq12jW_cellLabel'},'模型'),h('span',{className:'wq12jW_cellValue'},modelName(state.current.model)),h('svg',{className:'wq12jW_cellChevron',width:12,height:12},h('path',{d:'M4 2l4 4-4 4',fill:'none',stroke:'currentColor'}))),
       h('button',{key:'effort',type:'button',role:'menuitem',className:'wq12jW_cell',onClick:()=>{}},h('span',{className:'wq12jW_cellLabel'},'推理等级'),h('span',{className:'wq12jW_cellValue'},state.effort),h('svg',{className:'wq12jW_cellChevron',width:12,height:12},h('path',{d:'M4 2l4 4-4 4',fill:'none',stroke:'currentColor'})))
     ] : [
-      h('div',{key:'models',id:'official-model-models',className:'wq12jW_groups scrollable',role:'menu','aria-label':'Models'},
-        h('div',{className:'wq12jW_group'}, h('div',{role:'heading',className:'wq12jW_groupLabel'},'DeepSeek'), ...['deepseek-chat','deepseek-reasoner'].map((model)=>
-          h('button',{key:model,type:'button',role:'menuitemradio',className:'wq12jW_option wq12jW_modelOption','aria-checked':String(state.current.model===model),disabled:state.pending!==null,onClick:()=>{directory.select({provider:'deepseek',model});setOpen(false);setPane('root');}},
+      showSearch&&h('div',{key:'search',className:'wq12jW_searchRow'},h('input',{className:'wq12jW_search',type:'text',role:'searchbox','aria-label':'Search models','aria-controls':id+'-models',placeholder:'Search models',value:query,readOnly:state.pending!==null,onChange:event=>setQuery(event.target.value),onKeyDown:event=>{if(event.key==='ArrowDown'){event.preventDefault();menuRef.current?.querySelector('[role="menuitemradio"]:not(:disabled)')?.focus();}}})),
+      h('div',{key:'models',id:id+'-models',hidden:visibleModels.length===0,className:'wq12jW_groups scrollable',role:'menu','aria-label':'Models'},
+        h('div',{className:'fixture-model-group'}, h('div',{role:'heading',className:'fixture-groupLabel'},'DeepSeek'), ...visibleModels.map((model)=>
+          h('button',{key:model,type:'button',role:'menuitemradio',className:'wq12jW_option wq12jW_modelOption','aria-checked':String(state.current.model===model),disabled:state.pending!==null,onClick:()=>choose(model),onKeyDown:event=>{if(event.key==='Enter'){event.preventDefault();choose(model);}}},
             h('span',{className:'wq12jW_optionCopy'},h('span',{className:'wq12jW_modelName','data-provider-id':'deepseek','data-model-id':model},modelName(model))),
             h('span',{className:'wq12jW_check'},state.current.model===model?h('svg',{viewBox:'0 0 24 24',width:20,height:20,'aria-hidden':true},h('path',{d:'m5 12 4 4L19 6',fill:'none',stroke:'currentColor',strokeWidth:1.8})):null)))))
+      ,visibleModels.length===0&&h('div',{key:'empty',role:'status'},'No matching models')
     ]) : null;
-    return h('div',{className:'wq12jW_root',onKeyDown:(event)=>{if(event.key==='Escape'&&open){event.preventDefault();if(pane!=='root')setPane('root');else setOpen(false);triggerRef.current?.focus();}}},h('button',{ref:triggerRef,type:'button','aria-label':'Select model','aria-haspopup':'menu','aria-expanded':String(open),'aria-controls':open?menuId:undefined,onClick:()=>{state.opens++;setOpen(!open);setPane('root')}},'DeepSeek'),menu && ReactDOM.createPortal(menu,document.body));
+    return h('div',{className:'wq12jW_root',onKeyDown:(event)=>{if(event.key==='Escape'&&open){event.preventDefault();if(pane!=='root')setPane('root');else setOpen(false);triggerRef.current?.focus();}}},h('button',{ref:triggerRef,type:'button','aria-label':'Select model','aria-haspopup':'menu','aria-expanded':String(open),'aria-controls':open?menuId:undefined,onClick:()=>{state.opens++;setOpen(!open);setPane('root');setQuery('')}},'DeepSeek'),menu && ReactDOM.createPortal(menu,document.body));
   }
   function App({sessionId}){return h('div',{'data-composer-card':'','data-fixture-session':sessionId},h(OfficialModelSelect,{sessionId}),h('div',{className:'slot-mount'},window.__slotComponent?h(window.__slotComponent,{sessionId}):null));}
   window.__fixtureRender=(sessionId=primarySessionId)=>ReactDOM.render(h(App,{sessionId}),document.getElementById('app'));

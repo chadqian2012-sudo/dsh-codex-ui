@@ -1,3 +1,18 @@
+# Unreleased UI／DSH rc3 适配验证（2026-10-24）
+
+当前开发分支在已有审查修复上精修两个弹窗；包版本仍为 1.2.1，npm 和既有 tag 未被替换。
+
+- 本机只读核对：DSH Desktop、官方 model-selection 与 DeepSeek provider 均为 `0.2.1-rc.3`。原生菜单／目录契约 **3 项通过**，确认根菜单两行、ARIA 关联、模型列表与搜索入口、busy／generation 防护、四个真实 effort ID 和默认值委托仍成立。
+- 浏览器 fixture 从实际安装包的 CSS Modules 导出中解析类名，使用 rc3 原生样式，不再硬编码 rc2 哈希。搜索能力同时检查类导出与原生 searchbox 源码契约；早期包不提供时基本 fixture 仍能启动，专属搜索场景明确跳过。Provider 分组与搜索输入仍为测试替身，没有宣称复现 primitives 内部 DOM。
+- Chromium + React **6 个场景通过，0 失败、0 跳过**：原有七档／映射别名／双会话隔离／指针捕获／提示清理保持；新增大于四模型时的搜索、空结果保留菜单装饰、返回列表、键盘选择、右侧选中标记及窄窗口布局。浅深色、320／1280 CSS px、DPR 1／1.25／1.5 矩阵继续通过。
+- 核心回归 **626 项通过、0 失败**。滑块运动、Ultra 平滑渐变与 1.8 倍闪电速度参数没有修改。仅调整两面板局部 CSS；没有新增会话／消息／请求代码。
+- 在独立临时 `DSH_HOME` 中，**rc3 官方 Desktop CLI 实际完成当前本地目录安装与 `--dump-config` 解析**；依赖和 bundle 注册正确，所装客户端 SHA-256 与源码一致。没有向该 profile 复制账号凭据。原始回执保存在忽略的 `.work/native-home/public-runs/c25f5670-de11-48fc-be1b-ed00fe9c0906/public-install-results.json`。
+- ASAR 解析 **6 项通过**；当前源码 tarball／目录／本地 Git 消费通过；发行资源包含新的开发预览总览。JavaScript 语法与 diff 空白检查通过。
+- 预览由 `node test/capture-ui-refinement.mjs` 可复现，见 `preview/screenshots/rc3/overview.png`。测试矩阵截图输出到 `.work/browser-layouts`，不会覆盖历史发行截图。
+- 本轮没有更新真实 Desktop profile、重启 DSH 或发送模型请求。真实发送／流式／停止／续聊的既往验收记录仍仅适用于下面明确记录的版本；本轮证据是静态契约、浏览器替身与隔离官方 CLI 安装，不将它们写成 rc3 真实对话验收。
+
+English: the unreleased UI refinement passed 626 core assertions, six browser scenarios, three installed rc3 contracts and six bounded-ASAR tests. Dynamic CSS Module exports prevent stale hashes from invalidating the preview; optional search exports do not block basic fixtures on earlier builds. The official rc3 CLI installed the local source in a fresh isolated profile and resolved its bundle with matching client bytes. No real Desktop profile, credentials or conversation was changed. Preview screenshots come from a React fixture using native rc3 CSS, not the actual host component.
+
 # Unreleased 审查修复验证（2026-10-24）
 
 本节对应审查后的修复分支；未提升版本、创建 tag 或发布 npm。下面的既有 1.2.1／1.2.0 发行记录保持历史含义。
