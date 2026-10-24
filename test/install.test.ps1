@@ -80,6 +80,17 @@ try {
   Run-Installer 'first-install' @('-Rollback',$firstState.FullName)
   Assert -condition (-not (EntryExists $firstLink) -and [IO.File]::ReadAllText($firstManifest) -ceq $firstOriginal) -message 'First-install rollback removes the new link and restores the manifest'
 
+  # Older backups have no manifest hash; no-drift rollback still restores their exact snapshot.
+  $oldStateProfile=New-Profile 'old-state-format'; $oldStateManifest=Join-Path $oldStateProfile 'package.json'
+  $oldStateOriginal=[IO.File]::ReadAllText($oldStateManifest)
+  Run-Installer 'old-state-format'
+  $oldState=Get-ChildItem (Join-Path $oldStateProfile '.dsh-plugin-backups') -Filter state.json -Recurse | Select-Object -First 1
+  $oldStateObject=Read-Json $oldState.FullName
+  $oldStateObject.PSObject.Properties.Remove('manifestAfterHash')
+  [IO.File]::WriteAllText($oldState.FullName,($oldStateObject | ConvertTo-Json -Depth 8),(New-Object System.Text.UTF8Encoding($false)))
+  Run-Installer 'old-state-format' @('-Rollback',$oldState.FullName)
+  Assert -condition ([IO.File]::ReadAllText($oldStateManifest) -ceq $oldStateOriginal) -message 'Legacy rollback state without a manifest hash restores the exact original bytes'
+
   $modules=Join-Path $profile 'node_modules'; New-Item -ItemType Directory -Path $modules | Out-Null
   $entity=Join-Path $modules $fixture.name; New-Item -ItemType Directory -Path $entity | Out-Null
   [IO.File]::WriteAllText((Join-Path $entity 'local-marker.txt'),'keep',(New-Object System.Text.UTF8Encoding($false)))
@@ -93,6 +104,49 @@ try {
   Assert -condition ($after.dependencies.'keep-me' -eq '^7.0.0' -and $after.dsh.other.preserve -eq $true -and @($after.dsh.profile.bundles) -contains 'existing') -message 'Unrelated profile values survive install'
   Run-Installer 'desktop' @('-Rollback',$state.FullName)
   Assert -condition (((Get-Item -LiteralPath $link -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0 -and (Test-Path (Join-Path $link 'local-marker.txt')) -and [IO.File]::ReadAllText($manifest) -ceq $before) -message 'Rollback restores the original entity directory and manifest'
+
+  # Rollback after unrelated profile edits restores this plugin's old registration and entry only.
+  $drift=New-Profile 'rollback-preserves-drift'
+  $driftManifest=Join-Path $drift 'package.json'
+  $driftOriginal='{"name":"fixture","dependencies":{"keep-me":"^7.0.0","dsh-codex-ui":"link:C:/old/dsh-codex-ui","other-plugin":"^1.0.0"},"dsh":{"profile":{"bundles":["existing","dsh-codex-ui","tail"],"options":{"mode":"before"}},"other":{"preserve":true}}}'
+  [IO.File]::WriteAllText($driftManifest,$driftOriginal,(New-Object System.Text.UTF8Encoding($false)))
+  $oldPlugin=Join-Path $sandbox 'old-dsh-codex-ui'; New-Item -ItemType Directory -Path $oldPlugin | Out-Null
+  [IO.File]::WriteAllText((Join-Path $oldPlugin 'old-marker.txt'),'old',(New-Object System.Text.UTF8Encoding($false)))
+  $driftModules=Join-Path $drift 'node_modules'; New-Item -ItemType Directory -Path $driftModules | Out-Null
+  New-TestJunction (Join-Path $driftModules $fixture.name) $oldPlugin
+  Run-Installer 'rollback-preserves-drift'
+  $driftState=Get-ChildItem (Join-Path $drift '.dsh-plugin-backups') -Filter state.json -Recurse | Select-Object -First 1
+  $edited=Read-Json $driftManifest
+  $edited.dependencies.'keep-me'='^8.0.0'
+  $edited.dependencies | Add-Member NoteProperty 'later-plugin' '^2.0.0' -Force
+  $edited.dsh.profile.bundles=@($edited.dsh.profile.bundles)+'later-plugin'
+  $edited.dsh.profile.options.mode='after'
+  $edited.dsh.profile | Add-Member NoteProperty customProfileFlag 'preserve-me' -Force
+  [IO.File]::WriteAllText($driftManifest,($edited | ConvertTo-Json -Depth 40),(New-Object System.Text.UTF8Encoding($false)))
+  $driftStateDir=Split-Path $driftState.FullName
+  $rollbackCurrentEntry=Join-Path $driftStateDir 'rollback-current-entry'
+  [IO.File]::WriteAllText($rollbackCurrentEntry,'occupied',(New-Object System.Text.UTF8Encoding($false)))
+  $preflightRaw=[IO.File]::ReadAllText($driftManifest); $preflightTarget=Get-TestJunctionTarget (Join-Path $driftModules $fixture.name)
+  Run-InstallerExpectFailure 'rollback-preserves-drift' @('-Rollback',$driftState.FullName)
+  Assert -condition ([IO.File]::ReadAllText($driftManifest) -ceq $preflightRaw -and (Get-TestJunctionTarget (Join-Path $driftModules $fixture.name)) -eq $preflightTarget) -message 'Rollback refuses an occupied fixed entry before changing the manifest or link'
+  Remove-Item -LiteralPath $rollbackCurrentEntry -Force
+  Run-Installer 'rollback-preserves-drift' @('-Rollback',$driftState.FullName)
+  $driftRestored=Read-Json $driftManifest
+  Assert -condition ($driftRestored.dependencies.'dsh-codex-ui' -eq 'link:C:/old/dsh-codex-ui' -and $driftRestored.dependencies.'keep-me' -eq '^8.0.0' -and $driftRestored.dependencies.'other-plugin' -eq '^1.0.0' -and $driftRestored.dependencies.'later-plugin' -eq '^2.0.0') -message 'Rollback restores this plugin dependency and preserves later dependency edits'
+  Assert -condition ((@($driftRestored.dsh.profile.bundles) -join '|') -eq 'existing|dsh-codex-ui|tail|later-plugin' -and $driftRestored.dsh.profile.options.mode -eq 'after' -and $driftRestored.dsh.profile.customProfileFlag -eq 'preserve-me' -and $driftRestored.dsh.other.preserve -eq $true) -message 'Rollback restores bundle membership and preserves bundle order and custom profile metadata'
+  Assert -condition ((Get-TestJunctionTarget (Join-Path $driftModules $fixture.name)) -eq (Full $oldPlugin) -and (Test-Path (Join-Path (Join-Path $driftModules $fixture.name) 'old-marker.txt'))) -message 'Rollback restores the old dsh-codex-ui junction'
+  $consumedRaw=[IO.File]::ReadAllText($driftManifest); $consumedTarget=Get-TestJunctionTarget (Join-Path $driftModules $fixture.name)
+  Run-InstallerExpectFailure 'rollback-preserves-drift' @('-Rollback',$driftState.FullName)
+  Assert -condition ([IO.File]::ReadAllText($driftManifest) -ceq $consumedRaw -and (Get-TestJunctionTarget (Join-Path $driftModules $fixture.name)) -eq $consumedTarget) -message 'Repeated rollback refuses a consumed state without changing the current manifest or link'
+
+  # A state path routed through a junction must be rejected before its contents are read.
+  $redirectRoot=Join-Path $sandbox 'redirect-target'; New-Item -ItemType Directory -Path $redirectRoot | Out-Null
+  $redirectState=Join-Path $redirectRoot 'state.json'; [IO.File]::WriteAllText($redirectState,'{}',(New-Object System.Text.UTF8Encoding($false)))
+  $redirectBackup=Join-Path (Join-Path $profile '.dsh-plugin-backups') 'redirected'; New-TestJunction $redirectBackup $redirectRoot
+  $redirectRaw=[IO.File]::ReadAllText($redirectState)
+  Run-InstallerExpectFailure 'desktop' @('-Rollback',(Join-Path $redirectBackup 'state.json'))
+  Assert -condition ([IO.File]::ReadAllText($redirectState) -ceq $redirectRaw -and -not (Test-Path (Join-Path $redirectRoot 'rollback-current-manifest.json'))) -message 'Rollback rejects a state path with reparse-point ancestry before writing backup files'
+
   Run-Installer 'desktop'
   Run-Installer 'desktop'
   Assert -condition ((Get-ChildItem (Join-Path $profile '.dsh-plugin-backups') -Filter state.json -Recurse).Count -ge 2) -message 'Repeated install succeeds and records another rollback point'
