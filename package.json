@@ -64,6 +64,7 @@
     "test:browser": "node test/browser-ui.test.mjs",
     "preview:capture": "node test/capture-preview.mjs",
     "test:native": "node test/native-contract.mjs",
+    "test:asar": "node --test test/asar.test.mjs",
     "test:install": "powershell -NoProfile -ExecutionPolicy Bypass -File test/install.test.ps1",
     "test:distribution": "node --test test/distribution.test.mjs",
     "test:publish": "powershell -NoProfile -ExecutionPolicy Bypass -File test/publish.test.ps1",
@@ -72,8 +73,7 @@
     "prepublishOnly": "npm test && npm run test:distribution"
   },
   "engines": {
-    "node": ">=22",
-    "dsh": ">=0.2.1-rc.2 <0.3.0"
+    "node": ">=22"
   },
   "devDependencies": {
     "playwright": "1.62.1",

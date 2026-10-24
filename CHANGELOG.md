@@ -1,3 +1,14 @@
+# Unreleased
+
+- 保留同模型目录短暂清空期间的七档显示别名；模型或真实能力改变时仍清理旧别名。
+- 为未返回的 effort 提交增加有界恢复，并隔离超时旧请求的迟到回调。
+- RC 阶段移除 `engines.dsh` 预发布版本门槛；已验证版本继续在文档中明确列出。
+- 手动回滚只恢复本插件配置，保留其他插件和 profile 的后续改动；加强回滚备份路径检查。
+- 在开发用 ASAR 解析器分配内存前验证文件范围、条目大小和完整读取。
+- 同步安装文档到已发布的 1.2.1，并区分本分支尚未发布的修复。
+
+English: preserve display aliases across transient empty metadata; recover from stalled selections without accepting stale callbacks; remove the DSH prerelease semver gate; preserve unrelated profile changes during rollback; validate ASAR bounds before allocation; and distinguish published installation commands from unreleased fixes.
+
 # dsh-codex-ui 1.2.1
 
 - 仅允许发起拖动的 `pointerId` 更新和结束拖动；其他指针、迟到事件与重复结束事件不会接管或重复提交。

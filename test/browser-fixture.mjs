@@ -11,17 +11,33 @@ const DEPS = path.resolve(ROOT, '.work/browser-deps/node_modules');
 const RUNTIME_DEPS = path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+export const MAX_ASAR_ENTRY_BYTES = 64 * 1024 * 1024;
+const MAX_ASAR_HEADER_BYTES = 32 * 1024 * 1024;
+
+function readExactly(fd, buffer, position, label) {
+  let done = 0;
+  while (done < buffer.length) {
+    const count = fs.readSync(fd, buffer, done, buffer.length - done, position + done);
+    if (count === 0) throw new Error(`Truncated ASAR ${label}`);
+    done += count;
+  }
+}
 
 function asarIndex(asarPath) {
   const fd = fs.openSync(asarPath, 'r');
   try {
+    const archiveSize = fs.fstatSync(fd).size;
+    if (!Number.isSafeInteger(archiveSize) || archiveSize < 16) throw new Error('Truncated ASAR prelude');
     const prelude = Buffer.alloc(16);
-    fs.readSync(fd, prelude, 0, prelude.length, 0);
+    readExactly(fd, prelude, 0, 'prelude');
+    const headerSize = prelude.readUInt32LE(4);
     const jsonLength = prelude.readUInt32LE(12);
-    if (jsonLength <= 0 || jsonLength > 32 * 1024 * 1024) throw new Error('Unexpected ASAR header size');
+    if (jsonLength <= 0 || jsonLength > MAX_ASAR_HEADER_BYTES || headerSize < 8 || jsonLength > headerSize - 8) throw new Error('Unexpected ASAR header size');
+    const headerDataStart = 8 + headerSize; // Pickle framing includes padding after the JSON.
+    if (headerDataStart > archiveSize) throw new Error('Truncated ASAR header');
     const header = Buffer.alloc(jsonLength);
-    fs.readSync(fd, header, 0, header.length, 16);
-    return { fd, headerDataStart: 8 + prelude.readUInt32LE(4), files: JSON.parse(header.toString('utf8')) };
+    readExactly(fd, header, 16, 'header');
+    return { fd, archiveSize, headerDataStart, files: JSON.parse(header.toString('utf8')) };
   } catch (error) {
     fs.closeSync(fd);
     throw error;
@@ -37,9 +53,15 @@ export function readAsarEntry(entryPath, asarPath = ASAR_PATH) {
   try {
     const entry = entryAt(index.files, entryPath);
     if (!entry || entry.files || entry.unpacked) throw new Error(`ASAR entry unavailable: ${entryPath}`);
+    if (!Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > MAX_ASAR_ENTRY_BYTES) throw new Error(`Invalid ASAR entry size: ${entryPath}`);
+    // Standard ASAR offsets are decimal strings. Safe numeric offsets remain supported.
+    const offset = typeof entry.offset === 'string' && /^\d+$/.test(entry.offset) ? Number(entry.offset) : entry.offset;
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error(`Invalid ASAR entry offset: ${entryPath}`);
+    if (offset > index.archiveSize - index.headerDataStart) throw new Error(`ASAR entry outside archive: ${entryPath}`);
+    const position = index.headerDataStart + offset;
+    if (entry.size > index.archiveSize - position) throw new Error(`Truncated ASAR entry: ${entryPath}`);
     const data = Buffer.alloc(entry.size);
-    const position = index.headerDataStart + Number(entry.offset);
-    fs.readSync(index.fd, data, 0, data.length, position);
+    readExactly(index.fd, data, position, 'entry');
     return data;
   } finally {
     fs.closeSync(index.fd);
