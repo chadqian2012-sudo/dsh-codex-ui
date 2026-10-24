@@ -34,7 +34,7 @@ async function pageWithPlugin(options = {}) {
   const page = await context.newPage();
   page.setDefaultTimeout(5000);
   page.on('pageerror', (error) => console.error('[fixture pageerror]', error.message));
-  await page.goto(fixture.url + (options.session ? `?session=${encodeURIComponent(options.session)}` : ''));
+  await page.goto(fixture.url + '?' + new URLSearchParams({ ...(options.session ? { session: options.session } : {}), ...(options.manyModels ? { manyModels: '1' } : {}) }));
   await page.waitForFunction(() => window.__fixtureReady && window.__registration && window.__fixtureRender);
   await page.evaluate(() => window.__applyPlugin());
   await page.waitForSelector('[data-ces-part="anchor"]', { state: 'attached' });
@@ -78,6 +78,47 @@ test('real React DOM integration follows root/model selection, keeps effort pick
     } finally {
       await sessionTwo.context.close();
     }
+  } finally {
+    await context.close();
+  }
+});
+
+test('rc3 searchable model pane keeps its skin through filtering, empty results, keyboard selection and narrow layouts', async (t) => {
+  if (!fixture.supportsModelSearch) return t.skip('Installed host has no model-search CSS exports');
+  const { context, page } = await pageWithPlugin({ manyModels: true, viewport: { width: 320, height: 600 } });
+  try {
+    await page.getByRole('button', { name: 'Select model' }).click();
+    await page.locator('[data-ces-row="model"]').click();
+    const menu = page.locator('[data-ces-menu="models"]');
+    const search = page.getByRole('searchbox');
+    await search.waitFor();
+    assert.equal(await page.getByRole('menuitemradio').count(), 5);
+    assert.equal(await search.getAttribute('aria-controls'), 'official-model-session-1-models');
+    for (const dark of [false, true]) {
+      await page.evaluate(dark => document.body.toggleAttribute('data-ds-dark-theme', dark), dark);
+      const box = await menu.boundingBox();
+      assert.ok(box.x >= 0 && box.x + box.width <= 320 && box.y >= 0 && box.y + box.height <= 600, 'model pane fits narrow viewport in either theme');
+    }
+    await search.fill('no matching model');
+    await page.getByRole('status').waitFor();
+    assert.equal(await page.getByRole('menuitemradio').count(), 0);
+    assert.equal(await menu.count(), 1, 'hidden but mounted native list identifies the empty model pane');
+    assert.equal(await page.locator('[data-ces-part="track"]').count(), 0);
+    await search.fill('R1');
+    assert.equal(await page.getByRole('menuitemradio').count(), 1);
+    const option = page.getByRole('menuitemradio');
+    await search.press('ArrowDown');
+    assert.equal(await option.evaluate(el => el === document.activeElement), true, 'host keyboard navigation retains focus');
+    const optionBox = await option.boundingBox();
+    const checkBox = await option.locator(':scope > span').last().boundingBox();
+    assert.ok(optionBox.x + optionBox.width - checkBox.x - checkBox.width <= 12, 'native check stays at the right edge');
+    assert.equal(await option.evaluate(el => getComputedStyle(el).outlineStyle), 'solid', 'keyboard focus remains visible');
+    await page.screenshot({ path: path.join(ROOT, '.work', 'rc3-search-narrow.png') });
+    await option.press('Enter');
+    await page.waitForFunction(() => !document.querySelector('[data-ces-menu]'));
+    await page.waitForFunction(() => window.__fixture.current.model === 'deepseek-reasoner');
+    assert.equal(await page.evaluate(() => window.__fixture.messages), 0);
+    assert.equal(await page.locator('[data-ces-part="header-host"], [data-ces-part="model-notice-host"]').count(), 0);
   } finally {
     await context.close();
   }
@@ -195,7 +236,7 @@ test('seven display levels map to native IDs, retain aliases, scope sessions, an
       return { background: css.backgroundColor, radius: css.borderRadius, cornerShape: css.cornerShape, fill: icon.fill, stroke: icon.stroke };
     });
     assert.equal(lightning.background, 'rgba(127, 127, 127, 0.08)');
-    assert.equal(lightning.radius, '10px');
+    assert.equal(lightning.radius, '9px');
     assert.equal(lightning.cornerShape, 'superellipse(1)');
     assert.equal(lightning.fill, 'rgb(149, 149, 152)');
     assert.equal(lightning.stroke, 'none');
@@ -354,14 +395,14 @@ test('seven display levels map to native IDs, retain aliases, scope sessions, an
     await page.waitForFunction(() => document.querySelectorAll('[data-ces-part="anchor"]').length === 2);
     const secondComposer = page.locator('[data-fixture-session="session-2"]');
     await secondComposer.getByRole('button', { name: 'Select model' }).click();
-    const secondTrack = page.locator('#official-model-menu-session-2 [data-ces-part="track"]');
+    const secondTrack = page.locator('#official-model-session-2-menu [data-ces-part="track"]');
     await secondTrack.focus();
     await page.keyboard.press('End');
     await page.waitForFunction(() => window.__fixtureSessions.get('session-2').effort === 'max');
-    await page.waitForFunction(() => document.querySelector('#official-model-menu-session-2 [data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Ultra (max)');
+    await page.waitForFunction(() => document.querySelector('#official-model-session-2-menu [data-ces-part="track"]')?.getAttribute('aria-valuetext') === 'Ultra (max)');
     await secondComposer.getByRole('button', { name: 'Select model' }).click();
     await trigger.click();
-    await page.waitForSelector('#official-model-menu-session-1 [data-ces-part="track"]');
+    await page.waitForSelector('#official-model-session-1-menu [data-ces-part="track"]');
     assert.equal(await slider.getAttribute('aria-valuetext'), 'Max (max)', 'session-2 must not change session-1 alias');
     assert.deepEqual(await page.evaluate(() => window.__fixtureSessions.get('session-2').selections.map((s) => s.reasoningEffort)), ['max']);
   } finally {
@@ -439,7 +480,7 @@ test('native pointer capture loss settles once, foreign pointers cannot take ove
 });
 
 test('capture light and dark native menu layouts at the supported viewport and scale matrix', async () => {
-  const out = path.join(ROOT, 'preview', 'screenshots', 'v1.2.0');
+  const out = path.join(ROOT, '.work', 'browser-layouts');
   const fs = await import('node:fs/promises');
   await fs.mkdir(out, { recursive: true });
   for (const theme of ['light', 'dark']) {

@@ -23,6 +23,20 @@ function IsUnder([string]$child,[string]$parent) {
 function Assert-Under([string]$child,[string]$parent,[string]$label) {
   if (-not (IsUnder $child $parent)) { Die "$label 路径越界：$child" }
 }
+function Assert-NoReparsePath([string]$path,[string]$boundary,[string]$label) {
+  $current=Full $path; $base=Full $boundary
+  Assert-Under $current $base $label
+  while ($current -ne $base) {
+    if (-not (EntryExists $current)) { Die "$label 路径不存在：$current" }
+    $item=Get-Item -LiteralPath $current -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Die "拒绝通过链接路径访问$label：$current" }
+    $parent=Full (Split-Path -Parent $current)
+    if ($parent -eq $current) { Die "$label 路径越界：$path" }
+    $current=$parent
+  }
+  $baseItem=Get-Item -LiteralPath $base -Force
+  if (($baseItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Die "拒绝通过链接路径访问$label：$base" }
+}
 function Read-Json([string]$p) {
   try { return (Get-Content -LiteralPath $p -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { Die "JSON 无效：$p`n$($_.Exception.Message)" }
 }
@@ -87,6 +101,11 @@ function Move-Entry([string]$from,[string]$to) {
   if ($item.PSIsContainer) { [IO.Directory]::Move($from,$to) } else { [IO.File]::Move($from,$to) }
 }
 function Atomic-Manifest([string]$path,[string]$json) { Write-Atomic $path $json }
+function Get-TextHash([string]$value) {
+  $sha=[Security.Cryptography.SHA256]::Create()
+  try { return [BitConverter]::ToString($sha.ComputeHash($script:Utf8.GetBytes($value))).Replace('-','').ToLowerInvariant() }
+  finally { $sha.Dispose() }
+}
 
 try {
   if ($Uninstall -and $Rollback) { Die '不能同时指定 -Uninstall 与 -Rollback。' }
@@ -103,6 +122,15 @@ try {
   $manifestPath=Join-Path $profileDir 'package.json'
   if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { Die "profile 缺少 package.json：$manifestPath" }
   $manifestItem=Get-Item -LiteralPath $manifestPath -Force; if (($manifestItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Die "拒绝修改被链接替代的 package.json：$manifestPath" }
+  $allowedBackupRoot=Full (Join-Path $profileDir '.dsh-plugin-backups')
+  $rollbackStatePath=''; $rollbackStateDir=''
+  if ($Rollback) {
+    $rollbackStatePath=Full $Rollback
+    Assert-Under $rollbackStatePath $allowedBackupRoot '回滚备份'
+    $rollbackStateDir=Split-Path -Parent $rollbackStatePath
+    Assert-NoReparsePath $rollbackStatePath $profileDir '回滚备份'
+    if (-not (Test-Path -LiteralPath $rollbackStatePath -PathType Leaf)) { Die "回滚状态不存在：$rollbackStatePath" }
+  }
   $modulesDir=Full (Join-Path $profileDir 'node_modules'); Assert-Under $modulesDir $profileDir 'node_modules'
   if (Test-Path -LiteralPath $modulesDir) {
     $mi=Get-Item -LiteralPath $modulesDir -Force
@@ -125,37 +153,107 @@ try {
     $legacyRegistered = $manifest.dependencies.PSObject.Properties[$script:LegacyPluginName] -or @($manifest.dsh.profile.bundles) -contains $script:LegacyPluginName
     if ($legacyRegistered) { Die "profile 仍注册旧插件 $script:LegacyPluginName。请先在 DSH 原生管理页卸载旧插件，再安装 $script:PluginName；安装器不会自动删除旧插件或修改其注册。" }
   }
-  if (-not $manifest.dependencies) { $manifest | Add-Member NoteProperty dependencies ([pscustomobject]@{}) }
-  if (-not $manifest.dsh) { $manifest | Add-Member NoteProperty dsh ([pscustomobject]@{}) }
-  if (-not $manifest.dsh.profile) { $manifest.dsh | Add-Member NoteProperty profile ([pscustomobject]@{}) }
-  $depSpec='link:' + $PluginDir.Replace('\','/')
-  $bundles=@($manifest.dsh.profile.bundles)
-  if ($Uninstall) {
-    if ($manifest.dependencies.PSObject.Properties[$script:PluginName]) { $manifest.dependencies.PSObject.Properties.Remove($script:PluginName) }
-    $bundles=@($bundles | Where-Object { $_ -ne $script:PluginName })
-  } elseif (-not $Rollback) {
-    $manifest.dependencies | Add-Member NoteProperty $script:PluginName $depSpec -Force
-    if ($bundles -notcontains $script:PluginName) { $bundles+= $script:PluginName }
-  }
-  $manifest.dsh.profile | Add-Member NoteProperty bundles $bundles -Force
-
   if ($Rollback) {
-    $state=Full $Rollback; if (-not (Test-Path -LiteralPath $state -PathType Leaf)) { Die "回滚状态不存在：$state" }
-    $stateObj=Read-Json $state; $stateDir=Split-Path -Parent $state
-    $allowedBackupRoot=Full (Join-Path $profileDir '.dsh-plugin-backups'); Assert-Under $stateDir $allowedBackupRoot '回滚备份'
+    $state=$rollbackStatePath; $stateDir=$rollbackStateDir
+    $stateObj=Read-Json $state
     if ($stateObj.profile -ne $Profile -or $stateObj.package -ne $script:PluginName) { Die '回滚状态不属于当前 profile/插件。' }
     if ($stateObj.manifestBackup -ne (Join-Path $stateDir 'package.json')) { Die '回滚状态引用无效。' }
     if (-not (Test-Path -LiteralPath $stateObj.manifestBackup -PathType Leaf)) { Die '原 manifest 备份缺失。' }
+    Assert-NoReparsePath (Full $stateObj.manifestBackup) $profileDir '原 manifest 备份'
+    $savedBackupItem=Get-Item -LiteralPath $stateObj.manifestBackup -Force
+    if (($savedBackupItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Die "拒绝读取被链接替代的原 manifest 备份：$($stateObj.manifestBackup)" }
     $savedRaw=Get-Content -LiteralPath $stateObj.manifestBackup -Raw -Encoding UTF8
-    $null=$savedRaw | ConvertFrom-Json
+    $savedManifest=$null
+    try { $savedManifest=$savedRaw | ConvertFrom-Json } catch { Die "原 manifest 备份 JSON 无效：$($stateObj.manifestBackup)`n$($_.Exception.Message)" }
     $rollbackLink=Join-Path $stateDir 'previous-entry'
+    $currentRaw=Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8
+    $currentHash=Get-TextHash $currentRaw
+    $noManifestDrift=$false
+    if ($stateObj.manifestAfterHash) {
+      $noManifestDrift=($currentHash -eq [string]$stateObj.manifestAfterHash)
+    } elseif (EntryExists $linkPath) {
+      # Older state files lack the post-install hash. Rebuild the installed manifest from
+      # the saved snapshot and current junction target so no-drift legacy rollbacks stay exact.
+      try {
+        $linkItem=Get-Item -LiteralPath $linkPath -Force
+        if (($linkItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+          $expectedManifest=$savedRaw | ConvertFrom-Json
+          if (-not $expectedManifest.dependencies) { $expectedManifest | Add-Member NoteProperty dependencies ([pscustomobject]@{}) }
+          if (-not $expectedManifest.dsh) { $expectedManifest | Add-Member NoteProperty dsh ([pscustomobject]@{}) }
+          if (-not $expectedManifest.dsh.profile) { $expectedManifest.dsh | Add-Member NoteProperty profile ([pscustomobject]@{}) }
+          $expectedDependency='link:' + (Full (Get-JunctionTarget $linkPath)).Replace('\','/')
+          $expectedManifest.dependencies | Add-Member NoteProperty $script:PluginName $expectedDependency -Force
+          $expectedBundles=@($expectedManifest.dsh.profile.bundles)
+          if ($expectedBundles -notcontains $script:PluginName) { $expectedBundles+= $script:PluginName }
+          $expectedManifest.dsh.profile | Add-Member NoteProperty bundles $expectedBundles -Force
+          $expectedRaw=$expectedManifest | ConvertTo-Json -Depth 40
+          $noManifestDrift=($expectedRaw -ceq $currentRaw)
+        }
+      } catch { $noManifestDrift=$false }
+    }
+    $rollbackRaw=''
+    if ($noManifestDrift) {
+      # No profile changes occurred since installation; preserve the original bytes and formatting.
+      $rollbackRaw=$savedRaw
+    } else {
+      # Restore only this plugin's registration. Keep all current profile metadata and other plugins.
+      $savedDependency=$null
+      if ($savedManifest.dependencies) { $savedDependency=$savedManifest.dependencies.PSObject.Properties[$script:PluginName] }
+      if ($savedDependency) {
+        if (-not $manifest.dependencies) { $manifest | Add-Member NoteProperty dependencies ([pscustomobject]@{}) }
+        $manifest.dependencies | Add-Member NoteProperty $script:PluginName $savedDependency.Value -Force
+      } elseif ($manifest.dependencies) {
+        $currentDependency=$manifest.dependencies.PSObject.Properties[$script:PluginName]
+        if ($currentDependency) { $manifest.dependencies.PSObject.Properties.Remove($script:PluginName) }
+      }
+
+      $savedBundles=@(); $savedBundleProperty=$null
+      if ($savedManifest.dsh -and $savedManifest.dsh.profile) {
+        $savedBundleProperty=$savedManifest.dsh.profile.PSObject.Properties['bundles']
+        if ($savedBundleProperty) { $savedBundles=@($savedBundleProperty.Value) }
+      }
+      $originalPluginIndex=-1
+      for ($i=0; $i -lt $savedBundles.Count; $i++) { if ($savedBundles[$i] -eq $script:PluginName) { $originalPluginIndex=$i; break } }
+      $currentBundleProperty=$null
+      if ($manifest.dsh -and $manifest.dsh.profile) { $currentBundleProperty=$manifest.dsh.profile.PSObject.Properties['bundles'] }
+      if ($currentBundleProperty -or $originalPluginIndex -ge 0) {
+        $currentBundles=@(); if ($currentBundleProperty) { $currentBundles=@($currentBundleProperty.Value) }
+        $otherBundles=@($currentBundles | Where-Object { $_ -ne $script:PluginName })
+        if ($originalPluginIndex -ge 0) {
+          $insertAt=0
+          for ($i=0; $i -lt $originalPluginIndex; $i++) { if ($savedBundles[$i] -ne $script:PluginName) { $insertAt++ } }
+          if ($insertAt -gt $otherBundles.Count) { $insertAt=$otherBundles.Count }
+          $restoredBundles=New-Object 'System.Collections.Generic.List[object]'
+          for ($i=0; $i -le $otherBundles.Count; $i++) {
+            if ($i -eq $insertAt) { $restoredBundles.Add($script:PluginName) }
+            if ($i -lt $otherBundles.Count) { $restoredBundles.Add($otherBundles[$i]) }
+          }
+          $otherBundles=@($restoredBundles.ToArray())
+        }
+        if (-not $manifest.dsh) { $manifest | Add-Member NoteProperty dsh ([pscustomobject]@{}) }
+        if (-not $manifest.dsh.profile) { $manifest.dsh | Add-Member NoteProperty profile ([pscustomobject]@{}) }
+        $manifest.dsh.profile | Add-Member NoteProperty bundles $otherBundles -Force
+      }
+      $rollbackRaw=$manifest | ConvertTo-Json -Depth 40
+      $null=$rollbackRaw | ConvertFrom-Json
+    }
     if ($WhatIf) { Say "WhatIf: 将从 $state 恢复 manifest 与 node_modules 项"; exit 0 }
-    $currentManifest=Join-Path $stateDir 'rollback-current-manifest.json'; Copy-Item -LiteralPath $manifestPath -Destination $currentManifest -Force
+    $currentManifest=Join-Path $stateDir 'rollback-current-manifest.json'
     $currentEntry=Join-Path $stateDir 'rollback-current-entry'
+    $previousEntryPresent=EntryExists $rollbackLink
+    if ($stateObj.previousPresent -and -not $previousEntryPresent) { Die "原插件备份项 previous-entry 缺失；此回滚状态可能已使用，拒绝重复回滚：$stateDir" }
+    if (-not $stateObj.previousPresent -and $previousEntryPresent) { Die "回滚状态标记与 previous-entry 不一致，拒绝操作：$stateDir" }
+    if (EntryExists $currentEntry) { Die "固定回滚项 rollback-current-entry 已存在；拒绝重复消费此回滚状态：$currentEntry" }
+    if (EntryExists $currentManifest) {
+      $currentManifestItem=Get-Item -LiteralPath $currentManifest -Force
+      if (($currentManifestItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Die "拒绝写入被链接替代的回滚 manifest 文件：$currentManifest" }
+      Die "固定回滚 manifest 已存在；拒绝重复消费此回滚状态：$currentManifest"
+    }
+    Copy-Item -LiteralPath $manifestPath -Destination $currentManifest -Force
     try {
       if (Test-Path -LiteralPath $linkPath) { Move-Entry $linkPath $currentEntry }
       if ($stateObj.previousPresent) { Move-Entry $rollbackLink $linkPath }
-      Atomic-Manifest $manifestPath $savedRaw
+      Atomic-Manifest $manifestPath $rollbackRaw
     } catch {
       if (EntryExists $linkPath) { Move-Entry $linkPath (Join-Path $stateDir 'rollback-failed-restoration') }
       if (Test-Path -LiteralPath $currentEntry) { Move-Entry $currentEntry $linkPath }
@@ -164,6 +262,20 @@ try {
     }
     Say "已回滚。状态与当前版本保存在：$stateDir"; exit 0
   }
+
+  if (-not $manifest.dependencies) { $manifest | Add-Member NoteProperty dependencies ([pscustomobject]@{}) }
+  if (-not $manifest.dsh) { $manifest | Add-Member NoteProperty dsh ([pscustomobject]@{}) }
+  if (-not $manifest.dsh.profile) { $manifest.dsh | Add-Member NoteProperty profile ([pscustomobject]@{}) }
+  $depSpec='link:' + $PluginDir.Replace('\','/')
+  $bundles=@($manifest.dsh.profile.bundles)
+  if ($Uninstall) {
+    if ($manifest.dependencies.PSObject.Properties[$script:PluginName]) { $manifest.dependencies.PSObject.Properties.Remove($script:PluginName) }
+    $bundles=@($bundles | Where-Object { $_ -ne $script:PluginName })
+  } else {
+    $manifest.dependencies | Add-Member NoteProperty $script:PluginName $depSpec -Force
+    if ($bundles -notcontains $script:PluginName) { $bundles+= $script:PluginName }
+  }
+  $manifest.dsh.profile | Add-Member NoteProperty bundles $bundles -Force
 
   $json=$manifest | ConvertTo-Json -Depth 40
   $null=$json | ConvertFrom-Json
@@ -182,7 +294,7 @@ try {
     $previousReparse=(($old.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)
     if ($previousReparse) { $previousTarget=Get-JunctionTarget $linkPath }
   }
-  $state=[ordered]@{ profile=$Profile; package=$script:PluginName; manifestBackup=$manifestBackup; previousPresent=$previousPresent; previousReparse=$previousReparse; previousTarget=$previousTarget; timestamp=$stamp }
+  $state=[ordered]@{ profile=$Profile; package=$script:PluginName; manifestBackup=$manifestBackup; manifestAfterHash=(Get-TextHash $json); previousPresent=$previousPresent; previousReparse=$previousReparse; previousTarget=$previousTarget; timestamp=$stamp }
   $statePath=Join-Path $stateDir 'state.json'; [IO.File]::WriteAllText($statePath,($state|ConvertTo-Json -Depth 8),$script:Utf8)
   $previousEntry=Join-Path $stateDir 'previous-entry'; $newEntry=Join-Path $modulesDir ($script:PluginName+'.new-'+$stamp)
   $movedOld=$false; $manifestWritten=$false

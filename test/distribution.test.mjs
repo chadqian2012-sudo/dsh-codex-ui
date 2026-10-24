@@ -61,6 +61,7 @@ function assertPackageIdentity(pkg, clientSource, patch, { checkNoRuntimeDepende
   assert.equal(pkg.version, ROOT_PACKAGE.version);
   assert.equal(pkg.publishConfig?.access, "public");
   assert.equal(pkg.publishConfig?.registry, "https://registry.npmjs.org/");
+  assert.equal(pkg.engines?.dsh, undefined, "RC releases must not be rejected by a prerelease semver gate; compatibility is documented and tested separately");
   if (checkNoRuntimeDependencies) {
     for (const field of ["dependencies", "optionalDependencies", "peerDependencies"]) {
       assert.deepEqual(pkg[field] ?? {}, {}, `${field} must not add install-time/runtime packages`);
