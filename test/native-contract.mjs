@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { OFFICIAL_CLIENT_PATH, OFFICIAL_PACKAGE_PATH, readAsarEntry, readOfficialCss } from './browser-fixture.mjs';
+import { OFFICIAL_CLIENT_PATH, OFFICIAL_PACKAGE_PATH, readAsarEntry, readOfficialCss, readOfficialModelClasses } from './browser-fixture.mjs';
 
 const client = () => readAsarEntry(OFFICIAL_CLIENT_PATH).toString('utf8');
 
 test('installed official model selector package and menu accessibility contract are pinned', () => {
   const metadata = JSON.parse(readAsarEntry(OFFICIAL_PACKAGE_PATH).toString('utf8'));
-  assert.equal(metadata.version, '0.2.1-rc.2');
+  assert.ok(['0.2.1-rc.2', '0.2.1-rc.3'].includes(metadata.version), `Untested DSH menu package: ${metadata.version}`);
+  console.log(`Native ModelSelect contract: DSH ${metadata.version}`);
 
   const source = client();
   assert.match(source, /"aria-haspopup":\s*"menu"/);
@@ -26,8 +27,12 @@ test('installed official model selector package and menu accessibility contract 
   const rootRows = source.match(/role:\s*"menuitem"/g) ?? [];
   assert.equal(rootRows.length, 2, 'root pane has exactly the model and effort menuitem rows');
   const css = readOfficialCss();
-  assert.match(css, /\.wq12jW_menu\{/);
-  assert.match(css, /\.wq12jW_groups\{/);
+  const classes = readOfficialModelClasses();
+  for (const key of ['menu', 'groups', 'optionCopy', 'check']) assert.ok(css.includes(`.${classes[key]}{`), `Official CSS contains ${key}`);
+  if (metadata.version === '0.2.1-rc.3') {
+    assert.match(source, /role:\s*"searchbox"/);
+    assert.match(source, /"aria-controls":\s*`\$\{id\}-models`/);
+  }
 });
 
 test('native selection serializes UI availability and rejects stale directory responses', () => {

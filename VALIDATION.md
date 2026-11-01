@@ -1,3 +1,38 @@
+# Unreleased UI／DSH rc3 适配验证（2026-10-24）
+
+当前开发分支在已有审查修复上精修两个弹窗；包版本仍为 1.2.1，npm 和既有 tag 未被替换。
+
+- 本机只读核对：DSH Desktop、官方 model-selection 与 DeepSeek provider 均为 `0.2.1-rc.3`。原生菜单／目录契约 **3 项通过**，确认根菜单两行、ARIA 关联、模型列表与搜索入口、busy／generation 防护、四个真实 effort ID 和默认值委托仍成立。
+- 浏览器 fixture 从实际安装包的 CSS Modules 导出中解析类名，使用 rc3 原生样式，不再硬编码 rc2 哈希。搜索能力同时检查类导出与原生 searchbox 源码契约；早期包不提供时基本 fixture 仍能启动，专属搜索场景明确跳过。Provider 分组与搜索输入仍为测试替身，没有宣称复现 primitives 内部 DOM。
+- Chromium + React **6 个场景通过，0 失败、0 跳过**：原有七档／映射别名／双会话隔离／指针捕获／提示清理保持；新增大于四模型时的搜索、空结果保留菜单装饰、返回列表、键盘选择、右侧选中标记及窄窗口布局。浅深色、320／1280 CSS px、DPR 1／1.25／1.5 矩阵继续通过。
+- 核心回归 **626 项通过、0 失败**。滑块运动、Ultra 平滑渐变与 1.8 倍闪电速度参数没有修改。仅调整两面板局部 CSS；没有新增会话／消息／请求代码。
+- 在独立临时 `DSH_HOME` 中，**rc3 官方 Desktop CLI 实际完成当前本地目录安装与 `--dump-config` 解析**；依赖和 bundle 注册正确，所装客户端 SHA-256 与源码一致。没有向该 profile 复制账号凭据。原始回执保存在忽略的 `.work/native-home/public-runs/c25f5670-de11-48fc-be1b-ed00fe9c0906/public-install-results.json`。
+- ASAR 解析 **6 项通过**；当前源码 tarball／目录／本地 Git 消费通过；发行资源包含新的开发预览总览。JavaScript 语法与 diff 空白检查通过。
+- 预览由 `node test/capture-ui-refinement.mjs` 可复现，见 `preview/screenshots/rc3/overview.png`。测试矩阵截图输出到 `.work/browser-layouts`，不会覆盖历史发行截图。
+- 本轮没有更新真实 Desktop profile、重启 DSH 或发送模型请求。真实发送／流式／停止／续聊的既往验收记录仍仅适用于下面明确记录的版本；本轮证据是静态契约、浏览器替身与隔离官方 CLI 安装，不将它们写成 rc3 真实对话验收。
+
+English: the unreleased UI refinement passed 626 core assertions, six browser scenarios, three installed rc3 contracts and six bounded-ASAR tests. Dynamic CSS Module exports prevent stale hashes from invalidating the preview; optional search exports do not block basic fixtures on earlier builds. The official rc3 CLI installed the local source in a fresh isolated profile and resolved its bundle with matching client bytes. No real Desktop profile, credentials or conversation was changed. Preview screenshots come from a React fixture using native rc3 CSS, not the actual host component.
+
+# Unreleased 审查修复验证（2026-10-24）
+
+本节对应审查后的修复分支；未提升版本、创建 tag 或发布 npm。下面的既有 1.2.1／1.2.0 发行记录保持历史含义。
+
+- `npm test`：**626 项通过，0 项失败**。新增同模型空能力表时 Medium／XHigh／Ultra 别名保留、真实 off-only 能力变化失效、永不返回的选择请求恢复、仅转发最后一个排队选择一次、迟到成功／拒绝隔离，以及 Promise 已完成但快照未确认时的独立 deadline 与同 native ID 新意图保护。模型切换会取消旧节流 timer，新操作获得完整的 120 ms 窗口。
+- `npm run test:asar`：**6 项通过**。用很小的归档声明超大条目，分配守卫确认在大 Buffer 分配前拒绝；覆盖无效 size／offset、归档越界、截断头部／数据、短读、标准十进制字符串与数值偏移、pickle padding、空条目和原有 unavailable 错误。
+- `npm run test:native`：**3 项通过**。新解析器成功读取本机官方 ASAR 中的模型选择客户端、CSS、包信息和 DeepSeek 能力定义；原生目录的 generation 防护契约保持成立。该防护不代表取消已发送的宿主操作。
+- `npm run test:browser`：**5 个 Chromium + React 场景通过**。覆盖模型列表、七档与别名、双 composer 会话隔离、键鼠／触屏、捕获丢失和 Escape、闪电提示清理、浅深色与视口／缩放矩阵；fixture 没有向会话发送消息。
+- `npm run test:install`：**27 项通过**。在隔离 fixture profile 中验证插件范围的回滚，保留后续其他依赖、bundle 顺序和 profile 元数据；保留无漂移时的原清单字节；兼容旧 state 文件；拒绝 reparse ancestry 与重复消费备份，失败时当前清单及链接不变。
+- `npm run test:distribution`：**1 个集成测试通过**，覆盖实际 tarball、目录与本地 Git tag 消费，校验发行包入口与移除 RC semver 门槛。`npm run test:publish`：**17 项通过**；`npm run test:zip`：**4 项通过**。
+- JavaScript 语法、`git diff --check` 通过。ASAR 修补完成一次独立的绕过／回归审阅，没有留下已确认的问题。
+- 本轮没有安装到用户真实 Desktop profile，也没有发送真实模型请求；当前改动的对话隔离证据来自源码、原生契约和浏览器 fixture，既往真实对话记录见下文。
+- 审查指出的 npm OIDC 受保护发布环境需要 GitHub／npm 外部配置，本分支未更改发布工作流或外部账号设置。
+
+English: the unreleased branch passed 626 core assertions, 6 bounded-ASAR tests, 3 native contracts, 5 browser scenarios, 27 installer checks, distribution consumption, 17 publisher checks and 4 ZIP checks. Oversized malformed archives fail before entry allocation, while the installed official archive remains readable. No real Desktop profile or model conversation was changed.
+
+## 已发布 1.2.1 的独立 npm 下载核对
+
+2026-10-24 从官方 registry 实际执行 `npm pack dsh-codex-ui@1.2.1` 成功，包名／版本正确，26 个文件。tarball SHA-256 为 `47a6674dc53cc553726bd7bb71ea808826587b1d31c0a8382ea248cc8d0e4152`，与已发布 GitHub Release 原始工件一致；shasum 为 `621858a356bb085f774e6a2c20194043749f76ab`。此下载的是既有 1.2.1，尚不包含本节 Unreleased 修复。
+
 # 1.2.1 验证记录（2026-10-23）
 
 - 核心回归：**567 项通过，0 项失败**。新增不同指针的移动／按下／结束干扰、捕获丢失结算、重复结束、迟到事件、捕获失败后的窗口安全网，以及 Esc／关闭／卸载／模型切换／重置清理；起手首帧尚未生成时也保留新拖动目标。

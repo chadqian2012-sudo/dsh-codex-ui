@@ -79,6 +79,49 @@ async function setup(options = {}) {
   };
 }
 
+/** 可控墙上时间：零延时仍走真实 timer，以便 settle() 正常推进。 */
+function installFakeTimers() {
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let now = 0;
+  let nextId = 0;
+  const timers = new Map();
+  globalThis.setTimeout = (callback, delay = 0, ...args) => {
+    const duration = Number(delay) || 0;
+    if (duration <= 0) return originalSetTimeout(callback, duration, ...args);
+    const id = { fakeTimerId: ++nextId };
+    timers.set(id, { callback: () => callback(...args), at: now + duration });
+    return id;
+  };
+  globalThis.clearTimeout = (id) => {
+    if (!timers.delete(id)) originalClearTimeout(id);
+  };
+  async function drainMicrotasks() {
+    for (let i = 0; i < 24; i += 1) await Promise.resolve();
+  }
+  return {
+    drainMicrotasks,
+    async advanceBy(ms) {
+      now += ms;
+      for (let count = 0; count < 100; count += 1) {
+        let due = null;
+        for (const [id, timer] of timers) {
+          if (timer.at <= now && (due === null || timer.at < due.timer.at)) due = { id, timer };
+        }
+        if (due === null) return;
+        timers.delete(due.id);
+        due.timer.callback();
+        await drainMicrotasks();
+      }
+      throw new Error("fake timer loop did not settle");
+    },
+    restore() {
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    },
+  };
+}
+
 /**
  * 推进引擎到收敛。
  *
@@ -237,6 +280,50 @@ section("2a. 七个 UI 档位映射到四个 native ID，并隔离 alias 状态"
   const fallback = await setup({ host: { model: fallbackModel, effort: "balanced" } });
   eq(fallback.internals.levelsOf(fallback.host.store.getSnapshot()).length, 3, "[2a] 非四个 native ID 的能力保持原生档位列表");
   eq(fallback.react.find("track").getAttribute("aria-valuetext"), "Balanced (balanced)", "[2a] 原生档位也显示真实 ID");
+
+  for (const aliasCase of [
+    { effort: "low", key: "ArrowRight", expected: "Medium (low)" },
+    { effort: "high", key: "ArrowRight", expected: "XHigh (high)" },
+    { effort: "max", key: "End", expected: "Ultra (max)" },
+  ]) {
+    const alias = await setup({ host: { effort: aliasCase.effort } });
+    track(alias.react).fire("onKeyDown", { key: aliasCase.key });
+    await settle();
+    eq(alias.react.find("track").getAttribute("aria-valuetext"), aliasCase.expected, `[2a] 选择 ${aliasCase.expected} alias`);
+    const authoritative = alias.host.store.getSnapshot();
+    const temporarilyEmpty = {
+      ...authoritative,
+      groups: authoritative.groups.map((group) => ({
+        ...group,
+        models: group.models.map((model) => ({ ...model, reasoning: { ...model.reasoning, efforts: [] } })),
+      })),
+    };
+    alias.host.store.set(temporarilyEmpty);
+    await settle();
+    eq(alias.react.find("track").getAttribute("aria-valuetext"), aliasCase.expected, `[2a] ${aliasCase.expected} 在目录暂时空列表时仍保留`);
+    alias.host.store.set(authoritative);
+    await settle();
+    eq(alias.react.find("track").getAttribute("aria-valuetext"), aliasCase.expected, `[2a] ${aliasCase.expected} 在原目录恢复后仍保留`);
+  }
+
+  const offOnlyChange = await setup({ host: { effort: "low" } });
+  track(offOnlyChange.react).fire("onKeyDown", { key: "ArrowRight" });
+  await settle();
+  eq(offOnlyChange.react.find("track").getAttribute("aria-valuetext"), "Medium (low)", "[2a] off-only 能力变化前记住 Medium alias");
+  const beforeOffOnly = offOnlyChange.host.store.getSnapshot();
+  const offOnlyCapabilities = {
+    ...beforeOffOnly,
+    groups: beforeOffOnly.groups.map((group) => ({
+      ...group,
+      models: group.models.map((model) => ({
+        ...model,
+        reasoning: { ...model.reasoning, defaultEffort: "off", efforts: [{ id: "off", name: "Off" }] },
+      })),
+    })),
+  };
+  offOnlyChange.host.store.set(offOnlyCapabilities);
+  await settle();
+  eq(offOnlyChange.react.find("track").getAttribute("aria-valuetext"), "Off (off)", "[2a] 真实 off-only 能力变化会使旧 alias 失效");
 }
 
 section("2b. boost 可键鼠切换、只改视觉并保留原生能量级别");
@@ -539,6 +626,210 @@ section("5d. 同组件切换 session 时隔离旧会话 optimistic、busy 与写
   eq(bundle.react.find("root").getAttribute("data-busy"), "0", "[5d] A 的旧 promise 不恢复 busy 状态");
   eq(hostA.selects.length, 1, "[5d] A 的旧队列在切 scope 时丢弃，不补发 off");
   eq(hostB.selects.length, 0, "[5d] 只切换读取 session B，不向 B 提交旧意图");
+}
+
+section("5e. 永不返回的选择超时释放队列，旧请求晚到不影响显式重试");
+{
+  let hostGeneration = 0;
+  const deferred = [];
+  const fakeTimers = installFakeTimers();
+  let ctx;
+  try {
+    ctx = await setup({ host: { select: (selection, store) => {
+      const generation = ++hostGeneration;
+      return new Promise((resolve) => {
+        deferred.push({
+          selection,
+          resolve: () => {
+            // 模拟已安装目录的 generation 守卫：较旧响应仍会 settle，但不写回快照。
+            if (generation === hostGeneration) {
+              store.set({ ...store.getSnapshot(), current: { ...store.getSnapshot().current, reasoningEffort: selection.reasoningEffort } });
+            }
+            resolve({ ok: true });
+          },
+        });
+      });
+    } } });
+
+    track(ctx.react).fire("onKeyDown", { key: "End" }); // Max remains unresolved.
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 1, "[5e] 第一笔 select 已发出且不返回");
+    eq(ctx.react.find("root").getAttribute("data-busy"), "1", "[5e] 首笔请求期间 busy 开启");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Ultra (max)", "[5e] 首笔请求期间显示乐观档位");
+
+    await fakeTimers.advanceBy(10000);
+    ok(String(ctx.react.find("error")?.textContent || "").includes("宿主尚未确认结果"), "[5e] watchdog 明确提示宿主结果尚未确认");
+    eq(ctx.react.find("root").getAttribute("data-busy"), "0", "[5e] watchdog 释放 busy，允许用户重新操作");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "High (high)", "[5e] watchdog 清除乐观档位并回到当前快照");
+
+    track(ctx.react).fire("onKeyDown", { key: "Home" }); // 用户显式重试为 Off。
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 2, "[5e] watchdog 后的新用户操作发起第二笔 select");
+    eq(ctx.host.selects[1].reasoningEffort, "off", "[5e] 第二笔 select 使用用户刚选的 Off");
+    eq(ctx.react.find("root").getAttribute("data-busy"), "1", "[5e] 第二笔请求重新占用 busy");
+
+    deferred[0].resolve(); // 第一笔晚到；其响应不可触碰第二笔队列状态。
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.react.find("root").getAttribute("data-busy"), "1", "[5e] 旧请求晚到不清除新请求 busy");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Off (off)", "[5e] 旧请求晚到不覆盖新请求乐观档位");
+    eq(ctx.host.selects.length, 2, "[5e] 旧请求晚到不会重复 flush 或额外发请求");
+
+    deferred[1].resolve();
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.react.find("root").getAttribute("data-busy"), "0", "[5e] 当前请求完成后正常释放 busy");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Off (off)", "[5e] 最新请求完成后显示宿主确认值");
+  } finally {
+    if (ctx) ctx.react.unmount();
+    fakeTimers.restore();
+    if (ctx) await settle();
+  }
+}
+
+section("5f. select 已 resolve 但目录快照未确认时，乐观值仍按 deadline 回滚");
+{
+  const fakeTimers = installFakeTimers();
+  let ctx;
+  try {
+    ctx = await setup({ host: { select: () => Promise.resolve({ ok: true }) } });
+    track(ctx.react).fire("onKeyDown", { key: "End" }); // Promise 成功，但宿主快照仍保持 high。
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 1, "[5f] select 已调用");
+    eq(ctx.react.find("root").getAttribute("data-busy"), "0", "[5f] Promise 成功后 busy 解除");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Ultra (max)", "[5f] 快照确认前仍显示乐观 Ultra");
+
+    await fakeTimers.advanceBy(1000);
+    track(ctx.react).fire("onKeyDown", { key: "ArrowLeft" }); // 同 native max 的新 Max 操作取得新 token。
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 2, "[5f] 相同 native ID 的新操作独立发起");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Max (max)", "[5f] 新 token 显示 Max alias");
+
+    await fakeTimers.advanceBy(9000); // 第一项的旧 deadline 到点，新意图仍须保留。
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Max (max)", "[5f] 旧 deadline 不清除同 ID 的新乐观意图");
+    eq(ctx.react.find("error"), null, "[5f] 旧 deadline 不给新意图显示超时错误");
+    await fakeTimers.advanceBy(1000); // 第二项自己的 deadline 到点。
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "High (high)", "[5f] 新意图自己的 deadline 到期后回滚");
+    ok(String(ctx.react.find("error")?.textContent || "").includes("宿主未回报结果"), "[5f] 未确认快照的回滚带出错误说明");
+  } finally {
+    if (ctx) ctx.react.unmount();
+    fakeTimers.restore();
+    if (ctx) await settle();
+  }
+}
+
+section("5g. 超时只转发最后排队意图一次，旧 rejection 不影响新 flight");
+{
+  let hostGeneration = 0;
+  const deferred = [];
+  const fakeTimers = installFakeTimers();
+  let ctx;
+  try {
+    ctx = await setup({ host: { select: (selection, store) => {
+      const generation = ++hostGeneration;
+      return new Promise((resolve, reject) => {
+        deferred.push({
+          selection,
+          resolve: () => {
+            if (generation === hostGeneration) {
+              store.set({ ...store.getSnapshot(), current: { ...store.getSnapshot().current, reasoningEffort: selection.reasoningEffort } });
+            }
+            resolve({ ok: true });
+          },
+          reject,
+        });
+      });
+    } } });
+
+    track(ctx.react).fire("onKeyDown", { key: "End" }); // 第一笔 Max 不 settle。
+    await fakeTimers.drainMicrotasks();
+    track(ctx.react).fire("onKeyDown", { key: "Home" }); // 队列中先有 Off。
+    await fakeTimers.drainMicrotasks();
+    track(ctx.react).fire("onKeyDown", { key: "ArrowRight" }); // 最新意图覆盖成 Low。
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 1, "[5g] 第一笔在途期间只保留队列意图");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Low (low)", "[5g] 超时前显示最后排队的 Low");
+
+    await fakeTimers.advanceBy(10000);
+    eq(ctx.host.selects.length, 2, "[5g] watchdog 只额外发出一笔最新 select");
+    eq(ctx.host.selects[1].reasoningEffort, "low", "[5g] watchdog 丢弃较早 Off 并提交最新 Low");
+    eq(ctx.react.find("root").getAttribute("data-busy"), "1", "[5g] 最新 select 接手 busy");
+    ok(String(ctx.react.find("error")?.textContent || "").includes("宿主尚未确认结果"), "[5g] 转发期间保留首笔响应不确定提示");
+
+    deferred[0].reject(new Error("late old rejection"));
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 2, "[5g] 旧 rejection 不重复 flush");
+    eq(ctx.react.find("root").getAttribute("data-busy"), "1", "[5g] 旧 rejection 不清除最新 flight busy");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Low (low)", "[5g] 旧 rejection 不回滚最新乐观值");
+    ok(String(ctx.react.find("error")?.textContent || "").includes("宿主尚未确认结果"), "[5g] 旧 rejection 不覆盖 watchdog 提示");
+
+    deferred[1].resolve();
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 2, "[5g] 最新请求完成后没有额外重试");
+    eq(ctx.react.find("root").getAttribute("data-busy"), "0", "[5g] 最新请求完成后释放 busy");
+    eq(ctx.react.find("track").getAttribute("aria-valuetext"), "Low (low)", "[5g] 最新请求完成后快照确认 Low");
+
+    const dedupe = await setup({ host: { select: () => new Promise(() => {}) } });
+    track(dedupe.react).fire("onKeyDown", { key: "End" });
+    await fakeTimers.drainMicrotasks();
+    track(dedupe.react).fire("onKeyDown", { key: "Home" });
+    await fakeTimers.drainMicrotasks();
+    for (let i = 0; i < 3; i += 1) {
+      track(dedupe.react).fire("onKeyDown", { key: "ArrowRight" });
+      await fakeTimers.drainMicrotasks();
+    }
+    eq(dedupe.react.find("track").getAttribute("aria-valuetext"), "High (high)", "[5g] 最新排队意图回到快照已有的 High");
+    await fakeTimers.advanceBy(10000);
+    eq(dedupe.host.selects.length, 1, "[5g] 已确认的最新目标去重，不额外提交");
+    eq(dedupe.react.find("root").getAttribute("data-busy"), "0", "[5g] dedupe 后释放 busy");
+    eq(dedupe.react.find("error"), null, "[5g] 快照已确认排队目标时清除不确定提示");
+    eq(dedupe.react.find("track").getAttribute("aria-valuetext"), "High (high)", "[5g] dedupe 后显示当前确认值");
+    dedupe.react.unmount();
+  } finally {
+    if (ctx) ctx.react.unmount();
+    fakeTimers.restore();
+    if (ctx) await settle();
+  }
+}
+
+section("5h. 模型切换重置旧降频计时器，新模型重新等待完整窗口");
+{
+  const fakeTimers = installFakeTimers();
+  let ctx;
+  try {
+    ctx = await setup({ reducedMotion: true });
+    track(ctx.react).fire("onPointerDown", { clientX: 290, pointerId: 21 }); // A 的非立即 max 意图。
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 0, "[5h] 模型 A 的意图先进入降频队列");
+
+    const snapshot = ctx.host.store.getSnapshot();
+    const nextModel = { ...DEFAULT_MODEL, id: "deepseek-v41-flash-next", name: "Next Model" };
+    const nextSnapshot = {
+      ...snapshot,
+      current: { ...snapshot.current, model: nextModel.id, reasoningEffort: "high" },
+      groups: snapshot.groups.map((group) => group.id === snapshot.current.provider
+        ? { ...group, models: group.models.concat([nextModel]) }
+        : group),
+    };
+    ctx.host.store.set(nextSnapshot);
+    await fakeTimers.drainMicrotasks(); // modelIdentity cleanup discards A's queued write.
+    await fakeTimers.advanceBy(50);
+
+    track(ctx.react).fire("onPointerDown", { clientX: 0, pointerId: 22 }); // B's non-immediate Off intent.
+    await fakeTimers.drainMicrotasks();
+    eq(ctx.host.selects.length, 0, "[5h] 模型 B 的新意图进入自己的降频队列");
+
+    await fakeTimers.advanceBy(70); // t=120: A 的旧 deadline would have fired here.
+    eq(ctx.host.selects.length, 0, "[5h] 旧模型的 deadline 不会提前 flush B 的意图");
+    await fakeTimers.advanceBy(49);
+    eq(ctx.host.selects.length, 0, "[5h] B 的意图在自身 120ms 窗口结束前不发送");
+    await fakeTimers.advanceBy(1);
+    eq(ctx.host.selects.length, 1, "[5h] B 的完整 120ms 窗口结束后发送一次");
+    eq(ctx.host.selects[0].model, nextModel.id, "[5h] 写回绑定新模型 B");
+    eq(ctx.host.selects[0].reasoningEffort, "off", "[5h] 写回 B 用户选择的 Off");
+  } finally {
+    if (ctx) ctx.react.unmount();
+    fakeTimers.restore();
+    if (ctx) await settle();
+  }
 }
 
 section("6. 拖动不会误触官方那一行的点击（会跳进等级列表）");

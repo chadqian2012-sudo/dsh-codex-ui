@@ -23,6 +23,7 @@ jobs:
           package-manager-cache: false
       - run: npm ci --ignore-scripts
       - run: npm test
+      - run: npm run test:asar
       - run: npm run test:distribution
       - if: runner.os == 'Windows'
         run: powershell -NoProfile -ExecutionPolicy Bypass -File test/install.test.ps1
