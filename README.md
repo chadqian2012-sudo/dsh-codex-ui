@@ -4,7 +4,7 @@ DeepSeek Harness 的 Codex 风格模型与推理等级弹窗。独立发行名�
 
 ![rc3 开发分支浅色与深色预览](preview/screenshots/rc3/overview.png)
 
-上图为当前开发分支的隔离预览，尚未发布到 npm；固定版本 `1.2.1` 不包含这些后续调整。历史发行截图见 [1.2.0 总览](preview/screenshots/v1.2.0/overview.png)。
+上图为 1.2.2 的隔离预览，不代表真实 Desktop 原生交互验收。历史发行截图见 [1.2.0 总览](preview/screenshots/v1.2.0/overview.png)。
 
 ## 三种原生安装方式
 
@@ -12,11 +12,11 @@ DeepSeek Harness 的 Codex 风格模型与推理等级弹窗。独立发行名�
 
 | 来源 | 输入内容 |
 | --- | --- |
-| npm | `dsh-codex-ui@1.2.1` |
-| Git 仓库 | `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.1` |
+| npm | `dsh-codex-ui@1.2.2` |
+| Git 仓库 | `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.2` |
 | 本地目录 | 解压后直接包含 `package.json` 的文件夹绝对路径，例如 `D:\Plugins\dsh-codex-ui` |
 
-**1.2.1 已发布。** 此版本修复拖动时的指针身份、捕获丢失结算与取消清理问题。当前开发分支中的后续修复尚未发布，见 [CHANGELOG.md](CHANGELOG.md) 的 Unreleased 条目；固定版本安装不会包含这些后续改动。既往下载验收范围见 [PUBLISHING.md](PUBLISHING.md) 与 [VALIDATION.md](VALIDATION.md)。
+**版本 1.2.2。** 包含选择超时恢复、显示别名保留、回滚隔离与 rc3 界面精修，见 [CHANGELOG.md](CHANGELOG.md)。安装前请确认对应 npm 版本或 Git tag 已可用。既往下载验收范围见 [PUBLISHING.md](PUBLISHING.md) 与 [VALIDATION.md](VALIDATION.md)。
 
 npm 下载源优先选择「npm 官方源」`https://registry.npmjs.org/`；需要时可选择镜像源 `https://registry.npmmirror.com/`，新版本可能尚未同步。Git 和本地目录来源无需配置 npm 包的下载源。本仓库的 `.npmrc` 仅为当前项目指定官方源，不改变全局配置。
 
@@ -64,6 +64,6 @@ npm run pack
 
 ## English
 
-**Version 1.2.1 is published.** It fixes pointer identity, lost capture settlement, and cancellation cleanup during slider drags. Follow-up fixes on the development branch remain unreleased; see the Unreleased section in [CHANGELOG.md](CHANGELOG.md). Pinned release installs do not contain those changes. See [PUBLISHING.md](PUBLISHING.md) and [VALIDATION.md](VALIDATION.md) for historical verification. DSH `0.2.1-rc.2` and `0.2.1-rc.3` have verified menu contracts; the rc3 checks use the installed package and a React fixture with its native CSS, including searchable and empty model lists, without new real-conversation tests; no `engines.dsh` gate is declared during the RC phase, so other prereleases are not rejected solely by semver. This does not claim that all DSH versions have been tested.
+**Version 1.2.2.** It includes selection recovery, alias retention, isolated rollback, and rc3 UI refinements; see [CHANGELOG.md](CHANGELOG.md). Confirm that the matching npm version or Git tag is available before installing. See [PUBLISHING.md](PUBLISHING.md) and [VALIDATION.md](VALIDATION.md) for historical verification. DSH `0.2.1-rc.2` and `0.2.1-rc.3` have verified menu contracts; the rc3 checks use the installed package and a React fixture with its native CSS, including searchable and empty model lists, without new real-conversation tests; no `engines.dsh` gate is declared during the RC phase, so other prereleases are not rejected solely by semver. This does not claim that all DSH versions have been tested.
 
 Codex-style model and effort menus for DeepSeek Harness, distributed independently as `dsh-codex-ui`. The seven display tiers map to the four actual DeepSeek effort IDs: Off (`off`), Low (`low`), Medium (`low`), High (`high`), XHigh (`high`), Max (`max`) and Ultra (`max`); display labels do not claim quality equivalence. The interface is scaled to 90% of its original size, with an approximately 342×130px card, 18px tier heading, 15px model name, 18px icons, a 32px track and a 36px circular knob. Explicit rounded corners on the track layers and knob override DSH's global `corner-shape: superellipse(1.5)`. Off stays gray; Low through Max stay blue. During the final sixth of slider travel from Max to Ultra, the purple gradient and stardust fade in with smoothstep; they fade out smoothly on retreat. Ultra particles traverse the track in about 3 seconds, or about 1.7 seconds with the visual-only boost enabled, preserving the 1.8x speed ratio and phase continuity. Gray dust in the blue region keeps its previous speed. Enabling the lightning fades the model name out, briefly shows the requested Chinese notice, then restores the native model entry; disabling it cancels that notice. The lightning has no hover tooltip. The notice does not change actual requests or quota behavior. The lightning control uses a solid SVG on a light-gray rounded base. Remove the upstream `dsh-codex-effort-slider` first. Install from npm, the tagged Git repository, or an absolute local package directory after confirming the chosen source is available. The package ships prebuilt JavaScript with no runtime dependencies or install scripts. Original MIT copyright and attribution are retained.

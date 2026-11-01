@@ -2,7 +2,7 @@
 
 本发行版的包名是 `dsh-codex-ui`，与上游 `dsh-codex-effort-slider` 区分。三种来源使用相同的包入口、客户端注册 ID 和 bundle patch，任选一种安装。
 
-固定版本示例指向已发布的 `1.2.1`；当前开发分支的 Unreleased 修复需要等待后续版本发布，或从对应修复分支／本地源码安装。既往远端验收记录见 [PUBLISHING.md](PUBLISHING.md)。
+固定版本示例指向 `1.2.2`；安装前请确认对应 npm 版本或 Git tag 已可用，也可从本地源码安装。既往远端验收记录见 [PUBLISHING.md](PUBLISHING.md)。
 
 ## 安装前
 
@@ -13,7 +13,7 @@
 在「插件 → 安装第三方插件」输入：
 
 ```text
-dsh-codex-ui@1.2.1
+dsh-codex-ui@1.2.2
 ```
 
 下载源选择「npm 官方源」：`https://registry.npmjs.org/`。也可使用「中国镜像源」`https://registry.npmmirror.com/`；若新版本尚未同步，切回官方源。维护者发布检查见 PUBLISHING.md。
@@ -23,10 +23,10 @@ dsh-codex-ui@1.2.1
 在同一个输入框填入固定版本：
 
 ```text
-https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.1
+https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.2
 ```
 
-也接受 `github:chadqian2012-sudo/dsh-codex-ui#v1.2.1`。仓库根目录直接包含 package.json 和 lib 产物，不需要 prepare/build 脚本。
+也接受 `github:chadqian2012-sudo/dsh-codex-ui#v1.2.2`。仓库根目录直接包含 package.json 和 lib 产物，不需要 prepare/build 脚本。
 
 ## 方式三：本地目录
 
@@ -45,8 +45,8 @@ D:\Plugins\dsh-codex-ui
 若已安装官方 `dsh` CLI，可在 Web 或自定义 profile 使用：
 
 ```powershell
-dsh plugin --profile web add dsh-codex-ui@1.2.1 --registry=https://registry.npmjs.org/
-dsh plugin --profile web add "git+https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.1"
+dsh plugin --profile web add dsh-codex-ui@1.2.2 --registry=https://registry.npmjs.org/
+dsh plugin --profile web add "git+https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.2"
 dsh plugin --profile web add "D:/path/to/dsh-codex-ui"
 ```
 
@@ -79,7 +79,7 @@ ZIP 中另附 Windows 安装器，默认链接到 Desktop profile。它是原生
 
 此安装器只管理 `dsh-codex-ui`。早先以 `dsh-codex-effort-slider` 身份生成的备份，需使用当时保留的原安装器回滚；不要交叉使用不同包名的 state.json。
 
-Manual rollback restores only this plugin's dependency, bundle membership, and package entry. Later changes to other plugins and profile fields are preserved. Fixed-version commands above install published 1.2.1; development-branch fixes remain unreleased.
+Manual rollback restores only this plugin's dependency, bundle membership, and package entry. Later changes to other plugins and profile fields are preserved. Fixed-version commands above target 1.2.2; confirm registry/tag availability before installing.
 
 ## 更新
 
