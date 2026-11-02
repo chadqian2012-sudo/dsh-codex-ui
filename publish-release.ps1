@@ -78,15 +78,15 @@ $ChangelogPath = Join-Path $Root 'CHANGELOG.md'
 
 if ($WhatIf) {
   Write-Host "发布目标：GitHub $Owner/$RepoName（public），npm $PackageName@$Version，tag $Tag"
-  Write-Host '步骤：校验账号与干净 main → 检查仓库/tag/release/npm 所有权 → 生成 tgz/zip/SHA256SUMS → 推送 main 与 tag → 创建 GitHub Release → npm publish。'
+  Write-Host '步骤：校验账号与干净功能分支 → 检查仓库/tag/release/npm 所有权 → 生成 tgz/zip/SHA256SUMS → 推送当前分支与 tag → 创建 GitHub Release → npm publish。'
   Write-Host 'WhatIf：未访问外部服务、未写入文件或 GitHub/npm。'
   exit 0
 }
 
 if (-not (Test-Path -LiteralPath $ChangelogPath -PathType Leaf)) { Stop-Release '缺少 CHANGELOG.md，不能生成发布说明。' }
 $HeadBeforeTests = (Require-Success (Invoke-Captured 'git' @('-C', $Root, 'rev-parse', 'HEAD') '记录发布提交')).Trim()
-$Branch = Require-Success (Invoke-Captured 'git' @('-C', $Root, 'branch', '--show-current') '读取当前分支')
-if ($Branch.Trim() -cne 'main') { Stop-Release '发布必须从 main 分支运行。' }
+$Branch = (Require-Success (Invoke-Captured 'git' @('-C', $Root, 'branch', '--show-current') '读取当前分支')).Trim()
+if ([string]::IsNullOrWhiteSpace($Branch) -or $Branch -ceq 'main') { Stop-Release '发布必须从独立 worktree 的功能分支运行；禁止直接推送 main。' }
 $Status = Require-Success (Invoke-Captured 'git' @('-C', $Root, 'status', '--porcelain') '检查工作树')
 if (-not [string]::IsNullOrWhiteSpace($Status)) { Stop-Release '工作树有未提交或未跟踪改动；请先提交或清理后再发布。' }
 $Origin = Require-Success (Invoke-Captured 'git' @('-C', $Root, 'remote', 'get-url', 'origin') '读取 origin')
@@ -203,8 +203,8 @@ if (-not $RepoExists) {
 }
 
 # Dry-run 验证写权限和 fast-forward 条件；实际 push 不带 force。
-$PushProbe = Require-Success (Invoke-Captured 'git' @('-C', $Root, 'push', '--dry-run', 'origin', 'HEAD:refs/heads/main', "HEAD:refs/tags/$Tag") '验证 GitHub push 权限')
-$Push = Invoke-Captured 'git' @('-C', $Root, 'push', 'origin', 'HEAD:refs/heads/main', "HEAD:refs/tags/$Tag") '推送 main 与发布 tag'
+$PushProbe = Require-Success (Invoke-Captured 'git' @('-C', $Root, 'push', '--dry-run', 'origin', "HEAD:refs/heads/$Branch", "HEAD:refs/tags/$Tag") '验证 GitHub push 权限')
+$Push = Invoke-Captured 'git' @('-C', $Root, 'push', 'origin', "HEAD:refs/heads/$Branch", "HEAD:refs/tags/$Tag") '推送功能分支与发布 tag'
 $null = Require-Success $Push
 
 $Release = Invoke-Captured 'gh' @('release', 'create', $Tag, $TarballPath, $ZipPath, $SumsPath, '--repo', "$Owner/$RepoName", '--title', "$PackageName $Version", '--notes-file', $ChangelogPath) '创建 GitHub Release'
