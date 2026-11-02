@@ -17,7 +17,7 @@ function Fixture([string]$name){
 @echo off
 echo git %* ^| %CD%>>"%MOCK_LOG%"
 if /i "%3 %4"=="rev-parse HEAD" (echo abcdef& exit /b 0)
-if /i "%3 %4 %5"=="branch --show-current " (echo main& exit /b 0)
+if /i "%3 %4 %5"=="branch --show-current " (echo release/1.2.0& exit /b 0)
 if /i "%3 %4"=="status --porcelain" (if /i "%MOCK_DIRTY%"=="1" (echo ?? dirty.txt)& exit /b 0)
 if /i "%3 %4 %5"=="remote get-url origin" (echo https://github.com/chadqian2012-sudo/dsh-codex-ui.git& exit /b 0)
 if /i "%3"=="check-ref-format" exit /b 0
@@ -81,7 +81,7 @@ try{
   Assert (-not(Test-Path $f.Log) -and -not(Test-Path $f.Dist)) 'WhatIf creates no output directory or mock log'
   $f=Fixture 'success';Run $f;$c=Calls $f
   Assert ($script:Exit -eq 0 -and $script:Output -match '发布完成') 'first release works with command mocks'
-  Assert ($c -notmatch 'ls-remote' -and $c -match 'repo create' -and $c -match 'push --dry-run' -and $c -match 'push origin') 'new repo skips remote tag lookup and dry-runs push'
+  Assert ($c -notmatch 'ls-remote' -and $c -match 'repo create' -and $c -match 'push --dry-run' -and $c -match 'push origin' -and $c -notmatch 'refs/heads/main|--force') 'new repo skips remote tag lookup and dry-runs push'
   Assert ($c.IndexOf('npm test') -lt $c.IndexOf('repo create') -and $c.IndexOf('test:distribution') -lt $c.IndexOf('repo create')) 'tests precede external repository write'
   Assert ($c.IndexOf('repo create') -lt $c.IndexOf('push --dry-run') -and $c.IndexOf('push --dry-run') -lt $c.IndexOf('push origin') -and $c.IndexOf('push origin') -lt $c.IndexOf('release create') -and $c.IndexOf('release create') -lt $c.IndexOf('npm publish')) 'new repository writes follow create, dry-run, push, release, publish order'
   Assert (@(($c -split "`r?`n") | Where-Object { $_ -and $_ -notmatch ([regex]::Escape('| '+$f.Root)) }).Count -eq 0) 'all mocked external commands run with checkout as working directory'

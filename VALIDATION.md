@@ -1,3 +1,13 @@
+# 1.2.2 发行准备验证（2026-11-02）
+
+本次发行复用已合并 PR #1 的 UI／会话隔离修复，运行时代码与 `64adbc6` 一致，仅更新版本、发行说明及发布分支约束。历史 Unreleased 记录保留其当时含义。
+
+- 发布在独立 worktree 的 `release/1.2.2-publish` 功能分支中进行；发布器只推送当前分支和版本 tag，拒绝 main／detached HEAD，不使用 force。
+- 本地重跑核心 626 项、发布模拟 17 项、发行包消费及 ZIP 4 项；结果以本次命令输出与 PR CI 为准。模型对话验证范围仍为下方明确标注的既往版本。
+- GitHub 与 npm 发布完成后，另从公开地址下载工件并核对 SHA-256；未完成的外部步骤不计为通过。
+
+English: release 1.2.2 retains the reviewed runtime bytes. Publishing uses a feature worktree and pushes only that branch and the version tag. Historical validation records retain their original scope; public download verification follows publication.
+
 # Unreleased UI／DSH rc3 适配验证（2026-10-24）
 
 当前开发分支在已有审查修复上精修两个弹窗；包版本仍为 1.2.1，npm 和既有 tag 未被替换。

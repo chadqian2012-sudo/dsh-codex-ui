@@ -26,7 +26,7 @@ npm publish --access public --registry=https://registry.npmjs.org/
 
 `prepublishOnly` 会再次核验源码与实际 npm 压缩包。不要在已发布同一版本后重复 publish；npm 版本不可覆盖。首次发布前，用 `npm view dsh-codex-ui --registry=https://registry.npmjs.org/` 确认未被其他人占用。若占用则先统一修改发行身份，不能只改 package.json。
 
-新建公开 GitHub 仓库后保留上游历史，提交已核验的修改，再推送 main 和 v1.2.0 tag。Release 附上 npm tgz、ZIP、SHA256SUMS 与发行说明。具体 gh/git 命令由维护者按当前登录账号执行；不要将 upstream 远程写入他人的仓库。
+历史首次发布保留了上游记录。后续发布必须在独立 worktree 的功能分支中提交并打开 PR，仅推送当前功能分支和版本 tag，禁止直接推送 main 或 force push。Release 附上 npm tgz、ZIP、SHA256SUMS 与发行说明。具体 gh/git 命令由维护者按当前登录账号执行；不要将 upstream 远程写入他人的仓库。
 
 仓库提供 `publish-release.ps1`：先用 `./publish-release.ps1 -WhatIf` 查看目标，登录完成并确认源码已提交后运行 `./publish-release.ps1`。它检查账号、origin 和版本归属，使用独立输出目录，保留已有远端版本和 tag，随后发布 GitHub Release 与 npm。任何阶段失败都会停止；如果 GitHub 已成功而 npm 失败，应使用该次生成的 tgz 在本机完成 npm 发布，而不是覆盖远端 tag 或 Release。需要的 npm 网页登录／2FA 由维护者在自己的终端和浏览器完成。
 
