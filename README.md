@@ -1,4 +1,4 @@
-# dsh-codex-ui 1.2.2
+# dsh-codex-ui 1.2.3
 
 DeepSeek Harness 的 Codex 风格模型与推理等级弹窗。独立发行名为 `dsh-codex-ui`，基于 [Microqian2th/dsh-codex-effort-slider](https://github.com/Microqian2th/dsh-codex-effort-slider) 的 `d1bb67b20bc19d44be7d7694ffca92a6f2fcbe9b`（1.1.2）修改。上游版权与 MIT 许可证完整保留，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
@@ -12,11 +12,11 @@ DeepSeek Harness 的 Codex 风格模型与推理等级弹窗。独立发行名�
 
 | 来源 | 输入内容 |
 | --- | --- |
-| npm | `dsh-codex-ui@1.2.2` |
-| Git 仓库 | `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.2` |
+| npm | `dsh-codex-ui@1.2.3` |
+| Git 仓库 | `https://github.com/chadqian2012-sudo/dsh-codex-ui.git#v1.2.3` |
 | 本地目录 | 解压后直接包含 `package.json` 的文件夹绝对路径，例如 `D:\Plugins\dsh-codex-ui` |
 
-**版本 1.2.2。** 包含选择超时恢复、显示别名保留、回滚隔离与 rc3 界面精修，见 [CHANGELOG.md](CHANGELOG.md)。安装前请确认对应 npm 版本或 Git tag 已可用。既往下载验收范围见 [PUBLISHING.md](PUBLISHING.md) 与 [VALIDATION.md](VALIDATION.md)。
+**版本 1.2.3。** 包含选择超时恢复、显示别名保留、回滚隔离与 rc3 界面精修，见 [CHANGELOG.md](CHANGELOG.md)。安装前请确认对应 npm 版本或 Git tag 已可用。既往下载验收范围见 [PUBLISHING.md](PUBLISHING.md) 与 [VALIDATION.md](VALIDATION.md)。
 
 npm 下载源优先选择「npm 官方源」`https://registry.npmjs.org/`；需要时可选择镜像源 `https://registry.npmmirror.com/`，新版本可能尚未同步。Git 和本地目录来源无需配置 npm 包的下载源。本仓库的 `.npmrc` 仅为当前项目指定官方源，不改变全局配置。
 
@@ -39,7 +39,7 @@ npm 下载源优先选择「npm 官方源」`https://registry.npmjs.org/`；需�
 
 宿主入口仅检查客户端产物；客户端只装饰当前 composer 通过 `aria-controls` 关联的模型菜单。模型和 effort 在用户操作控件后通过官方模型目录接口更新。没有消息注入、会话事件钩子、提示词改写、请求拦截或模型适配器修改。目录不可用或菜单结构不匹配时保留原生界面；不同会话使用各自的缓存、提交队列与粒子相位。
 
-已核对的运行时为 DSH `0.2.1-rc.2` 和 `0.2.1-rc.3`。本轮 rc3 验证使用安装包的菜单／目录静态契约与原生 CSS 的隔离浏览器 fixture，包含模型搜索、空结果及窄屏布局；没有重复执行真实会话发送测试。RC 阶段不声明 `engines.dsh`，避免标准 semver 的预发布匹配规则提前拒绝其他 RC；这不表示已验证所有 DSH 版本。支持 Desktop 与 Web，界面依赖宿主的模型菜单契约，结构不匹配时保留原生菜单。源码已包含 `lib/` 产物，npm、Git、本地安装均无需编译，也没有安装生命周期脚本或运行时依赖。
+当前开发分支已核对 DSH `0.2.1-rc.2`、`0.2.1-rc.3` 和 `0.2.2-rc.1`。新增适配让弹窗服从新版宿主提供的可用宽高，避免列表超出可用区域；从 `1.2.3` 起提供此适配。本轮验证使用官方安装包、加载其原生 CSS 的浏览器检查，以及独立测试 profile 的官方 CLI 安装／配置解析，没有重复发送真实模型消息。RC 阶段不声明 `engines.dsh`，避免标准 semver 的预发布匹配规则提前拒绝其他 RC；这不表示已验证所有 DSH 版本。支持 Desktop 与 Web，界面依赖宿主的模型菜单契约，结构不匹配时保留原生菜单。源码已包含 `lib/` 产物，npm、Git、本地安装均无需编译，也没有安装生命周期脚本或运行时依赖。
 
 ## 开发与验证
 
@@ -64,6 +64,6 @@ npm run pack
 
 ## English
 
-**Version 1.2.2.** It includes selection recovery, alias retention, isolated rollback, and rc3 UI refinements; see [CHANGELOG.md](CHANGELOG.md). Confirm that the matching npm version or Git tag is available before installing. See [PUBLISHING.md](PUBLISHING.md) and [VALIDATION.md](VALIDATION.md) for historical verification. DSH `0.2.1-rc.2` and `0.2.1-rc.3` have verified menu contracts; the rc3 checks use the installed package and a React fixture with its native CSS, including searchable and empty model lists, without new real-conversation tests; no `engines.dsh` gate is declared during the RC phase, so other prereleases are not rejected solely by semver. This does not claim that all DSH versions have been tested.
+**Version 1.2.3.** It includes selection recovery, alias retention, isolated rollback, and rc3 UI refinements; see [CHANGELOG.md](CHANGELOG.md). Confirm that the matching npm version or Git tag is available before installing. See [PUBLISHING.md](PUBLISHING.md) and [VALIDATION.md](VALIDATION.md) for historical verification. The development branch verifies menu contracts for DSH `0.2.1-rc.2`, `0.2.1-rc.3` and `0.2.2-rc.1`. Version 1.2.3 honors the rc.1 native available-space limits for popups. Checks use the installed package, a browser fixture with native CSS and an isolated official CLI install/configuration parse, without new real-conversation tests; no `engines.dsh` gate is declared during the RC phase, so other prereleases are not rejected solely by semver. This does not claim that all DSH versions have been tested.
 
 Codex-style model and effort menus for DeepSeek Harness, distributed independently as `dsh-codex-ui`. The seven display tiers map to the four actual DeepSeek effort IDs: Off (`off`), Low (`low`), Medium (`low`), High (`high`), XHigh (`high`), Max (`max`) and Ultra (`max`); display labels do not claim quality equivalence. The interface is scaled to 90% of its original size, with an approximately 342×130px card, 18px tier heading, 15px model name, 18px icons, a 32px track and a 36px circular knob. Explicit rounded corners on the track layers and knob override DSH's global `corner-shape: superellipse(1.5)`. Off stays gray; Low through Max stay blue. During the final sixth of slider travel from Max to Ultra, the purple gradient and stardust fade in with smoothstep; they fade out smoothly on retreat. Ultra particles traverse the track in about 3 seconds, or about 1.7 seconds with the visual-only boost enabled, preserving the 1.8x speed ratio and phase continuity. Gray dust in the blue region keeps its previous speed. Enabling the lightning fades the model name out, briefly shows the requested Chinese notice, then restores the native model entry; disabling it cancels that notice. The lightning has no hover tooltip. The notice does not change actual requests or quota behavior. The lightning control uses a solid SVG on a light-gray rounded base. Remove the upstream `dsh-codex-effort-slider` first. Install from npm, the tagged Git repository, or an absolute local package directory after confirming the chosen source is available. The package ships prebuilt JavaScript with no runtime dependencies or install scripts. Original MIT copyright and attribution are retained.
