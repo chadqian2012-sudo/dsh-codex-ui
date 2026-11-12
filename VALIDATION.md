@@ -1,3 +1,15 @@
+# 0.2.2-rc.1 的菜单空间限制已适配（2026-11-12）
+
+本机 Desktop 和官方模型菜单均确认是 `0.2.2-rc.1`。原有模型选择接口和四档 effort 无需更换。发现新版定位器会提供可用宽高，但插件的两条强制样式覆盖了它；现已直接修改这两条样式，由宿主继续负责定位。
+
+在原有搜索场景加入 260×180px 可用区域时，修复前检查失败，修复后列表服从该上限。全部 6 个浏览器场景通过（无跳过），原有 626 项核心断言全部通过；新版菜单／目录／输入区接口的 3 项检查全部通过。现有七档映射、圆形旋钮和星尘参数未变。
+
+官方 CLI 已在独立测试 profile 中安装当前本地源码，成功注册插件并解析配置；所装客户端与源码逐字节哈希一致。真实 Desktop profile 和消息未改动；本轮没有进行真实对话或桌面手感验收。此改动尚未发布，历史版本记录保留原意。
+
+English: two existing CSS limits now honor the native rc.1 available-space constraints. Existing 626 core assertions, six browser scenarios and three installed-package contracts pass. The official CLI installs/resolves the current source in a fresh test profile. Real Desktop conversations were not exercised.
+
+附录：原始安装回执位于忽略目录 `.work/native-home/public-runs/0a721b2d-bf24-413c-a23d-3884d0970503/public-install-results.json`；浏览器检查截图位于 `.work/browser-layouts` 和 `.work/model-search-narrow.png`。安装包分析使用项目现有读取器，未使用未连接的 REA 服务，也不声称具有 REA Evidence。
+
 # Unreleased UI／DSH rc3 适配验证（2026-10-24）
 
 当前开发分支在已有审查修复上精修两个弹窗；包版本仍为 1.2.1，npm 和既有 tag 未被替换。

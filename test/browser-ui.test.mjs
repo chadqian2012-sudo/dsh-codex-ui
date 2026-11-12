@@ -83,7 +83,7 @@ test('real React DOM integration follows root/model selection, keeps effort pick
   }
 });
 
-test('rc3 searchable model pane keeps its skin through filtering, empty results, keyboard selection and narrow layouts', async (t) => {
+test('native searchable model pane keeps its skin through filtering, empty results, keyboard selection and narrow layouts', async (t) => {
   if (!fixture.supportsModelSearch) return t.skip('Installed host has no model-search CSS exports');
   const { context, page } = await pageWithPlugin({ manyModels: true, viewport: { width: 320, height: 600 } });
   try {
@@ -99,6 +99,10 @@ test('rc3 searchable model pane keeps its skin through filtering, empty results,
       const box = await menu.boundingBox();
       assert.ok(box.x >= 0 && box.x + box.width <= 320 && box.y >= 0 && box.y + box.height <= 600, 'model pane fits narrow viewport in either theme');
     }
+    // rc.1's native positioner limits panels to the space available around the anchor.
+    await menu.evaluate(el => { el.style.setProperty('--dsh-anchored-max-width', '260px'); el.style.setProperty('--dsh-anchored-max-height', '180px'); });
+    const constrained = await menu.boundingBox();
+    assert.ok(constrained.width <= 260 && constrained.height <= 180, 'model pane respects host-provided available space');
     await search.fill('no matching model');
     await page.getByRole('status').waitFor();
     assert.equal(await page.getByRole('menuitemradio').count(), 0);
@@ -113,7 +117,7 @@ test('rc3 searchable model pane keeps its skin through filtering, empty results,
     const checkBox = await option.locator(':scope > span').last().boundingBox();
     assert.ok(optionBox.x + optionBox.width - checkBox.x - checkBox.width <= 12, 'native check stays at the right edge');
     assert.equal(await option.evaluate(el => getComputedStyle(el).outlineStyle), 'solid', 'keyboard focus remains visible');
-    await page.screenshot({ path: path.join(ROOT, '.work', 'rc3-search-narrow.png') });
+    await page.screenshot({ path: path.join(ROOT, '.work', 'model-search-narrow.png') });
     await option.press('Enter');
     await page.waitForFunction(() => !document.querySelector('[data-ces-menu]'));
     await page.waitForFunction(() => window.__fixture.current.model === 'deepseek-reasoner');

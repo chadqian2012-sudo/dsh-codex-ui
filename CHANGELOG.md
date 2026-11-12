@@ -1,3 +1,10 @@
+# Unreleased
+
+- 适配 DSH 0.2.2-rc.1 的原生弹窗空间限制，避免模型列表覆盖宿主给出的可用宽高；保留原有 UI、七档映射及动画。
+- 更新现有原生接口与浏览器检查，覆盖新版隐藏列表样式、输入区挂载位置和受限空间。
+
+English: respect DSH 0.2.2-rc.1 native popup size constraints; retain existing interaction/animation and validate current menu/composer contracts with existing checks.
+
 # dsh-codex-ui 1.2.2
 
 - 精修两个 Codex 风格弹窗：15px 模型文字、18px 图标、更轻的边框阴影、圆角列表悬停与明确的键盘焦点；保留滑轨／旋钮尺寸和现有动效参数。
