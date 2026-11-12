@@ -1,3 +1,25 @@
+# 0.2.2-rc.1 的菜单空间限制已适配（2026-11-12）
+
+本机 Desktop 和官方模型菜单均确认是 `0.2.2-rc.1`。原有模型选择接口和四档 effort 无需更换。发现新版定位器会提供可用宽高，但插件的两条强制样式覆盖了它；现已直接修改这两条样式，由宿主继续负责定位。
+
+在原有搜索场景加入 260×180px 可用区域时，修复前检查失败，修复后列表服从该上限。全部 6 个浏览器场景通过（无跳过），原有 626 项核心断言全部通过；新版菜单／目录／输入区接口的 3 项检查全部通过。现有七档映射、圆形旋钮和星尘参数未变。
+
+官方 CLI 已在独立测试 profile 中安装当前本地源码，成功注册插件并解析配置；所装客户端与源码逐字节哈希一致。真实 Desktop profile 和消息未改动；本轮没有进行真实对话或桌面手感验收。本节保留发布前验收范围，历史版本记录保留原意。
+
+English: two existing CSS limits now honor the native rc.1 available-space constraints. Existing 626 core assertions, six browser scenarios and three installed-package contracts pass. The official CLI installs/resolves the current source in a fresh test profile. Real Desktop conversations were not exercised.
+
+附录：原始安装回执位于忽略目录 `.work/native-home/public-runs/0a721b2d-bf24-413c-a23d-3884d0970503/public-install-results.json`；浏览器检查截图位于 `.work/browser-layouts` 和 `.work/model-search-narrow.png`。安装包分析使用项目现有读取器，未使用未连接的 REA 服务，也不声称具有 REA Evidence。
+
+# 1.2.2 发行准备验证（2026-11-02）
+
+本次发行复用已合并 PR #1 的 UI／会话隔离修复，运行时代码与 `64adbc6` 一致，仅更新版本、发行说明及发布分支约束。历史 Unreleased 记录保留其当时含义。
+
+- 发布在独立 worktree 的 `release/1.2.2-publish` 功能分支中进行；发布器只推送当前分支和版本 tag，拒绝 main／detached HEAD，不使用 force。
+- 本地重跑核心 626 项、发布模拟 17 项、发行包消费及 ZIP 4 项；结果以本次命令输出与 PR CI 为准。模型对话验证范围仍为下方明确标注的既往版本。
+- GitHub 与 npm 发布完成后，另从公开地址下载工件并核对 SHA-256；未完成的外部步骤不计为通过。
+
+English: release 1.2.2 retains the reviewed runtime bytes. Publishing uses a feature worktree and pushes only that branch and the version tag. Historical validation records retain their original scope; public download verification follows publication.
+
 # Unreleased UI／DSH rc3 适配验证（2026-10-24）
 
 当前开发分支在已有审查修复上精修两个弹窗；包版本仍为 1.2.1，npm 和既有 tag 未被替换。

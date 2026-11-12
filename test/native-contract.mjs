@@ -6,7 +6,7 @@ const client = () => readAsarEntry(OFFICIAL_CLIENT_PATH).toString('utf8');
 
 test('installed official model selector package and menu accessibility contract are pinned', () => {
   const metadata = JSON.parse(readAsarEntry(OFFICIAL_PACKAGE_PATH).toString('utf8'));
-  assert.ok(['0.2.1-rc.2', '0.2.1-rc.3'].includes(metadata.version), `Untested DSH menu package: ${metadata.version}`);
+  assert.ok(['0.2.1-rc.2', '0.2.1-rc.3', '0.2.2-rc.1'].includes(metadata.version), `Untested DSH menu package: ${metadata.version}`);
   console.log(`Native ModelSelect contract: DSH ${metadata.version}`);
 
   const source = client();
@@ -28,10 +28,17 @@ test('installed official model selector package and menu accessibility contract 
   assert.equal(rootRows.length, 2, 'root pane has exactly the model and effort menuitem rows');
   const css = readOfficialCss();
   const classes = readOfficialModelClasses();
-  for (const key of ['menu', 'groups', 'optionCopy', 'check']) assert.ok(css.includes(`.${classes[key]}{`), `Official CSS contains ${key}`);
-  if (metadata.version === '0.2.1-rc.3') {
+  for (const key of ['menu', 'optionCopy', 'check']) assert.ok(css.includes(`.${classes[key]}{`), `Official CSS contains ${key}`);
+  assert.ok(css.includes(`.${classes.groups}{`) || css.includes(`.${classes.groups}:not([hidden]){`), 'Native scroll group CSS is present');
+  if (metadata.version !== '0.2.1-rc.2') {
     assert.match(source, /role:\s*"searchbox"/);
     assert.match(source, /"aria-controls":\s*`\$\{id\}-models`/);
+  }
+  if (metadata.version === '0.2.2-rc.1') {
+    assert.match(source, /useAnchoredPosition/);
+    assert.ok(css.includes('--dsh-anchored-max-width') && css.includes('--dsh-anchored-max-height'));
+    const composer = readAsarEntry('dsh/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js').toString('utf8');
+    assert.ok(composer.includes('data-composer-card') && composer.includes('conversation.input.right'), 'Composer retains the session-scoped mounting points');
   }
 });
 
